@@ -1,0 +1,54 @@
+Sub 合计()
+a = Time
+'设置数据库表连接
+Set CONN = CreateObject("ADODB.Connection")
+CONN.Open "provider=Microsoft.ACE.OLEDB.12.0;extended properties=excel 8.0;data source=" & ThisWorkbook.FullName
+
+'SQL查询语句
+Sql = "select 平台,a.站点,平台账号,账号别名,发运仓库,a.产品代码,大类,小类,"
+Sql = Sql & "sum([订单总金额(包含客户运费、平台补贴)]),sum([订单总金额(包含客户运费、平台补贴)]/(1+税率)*税率),"
+Sql = Sql & "sum([订单总金额(包含客户运费、平台补贴)]-[订单总金额(包含客户运费、平台补贴)]/(1+税率)*税率),"
+Sql = Sql & "sum(数量),sum(平摊平台手续费),sum(平摊fba费用),"
+Sql = Sql & "sum(平摊其它费用),sum(采购成本),sum(头程运费成本),sum(头程关税成本),"
+Sql = Sql & "sum(iif(订单类型 = 'refund',[订单总金额(包含客户运费、平台补贴)]/(1+税率)-平摊平台手续费,0)),"
+Sql = Sql & "sum([订单总金额(包含客户运费、平台补贴)]) * 0.01,"
+Sql = Sql & "0,0,0,0,0"
+Sql = Sql & " from ([源数据$] a left join [税率$] b on a.站点 = b.站点) left join [类别$] c on a.产品代码 = c.产品代码 "
+Sql = Sql & "group by 平台,a.站点,平台账号,账号别名,发运仓库,a.产品代码,大类,小类 "
+Sql = Sql & "order by a.产品代码,平台,a.站点,平台账号,发运仓库"
+
+'清空整个sheet
+Worksheets("结果数据").UsedRange.ClearContents
+'设置表头
+Title = Array("平台", "站点", "平台账号", "账号别名", "发运仓库", "产品代码", "大类", "小类", _
+              "订单总金额(含税)", "vat费用", "订单总金额(不含税)", "数量", "平摊平台手续费", _
+              "平摊fba费用", "平摊fba费用", "采购成本", "头程运费成本", "头程关税成本", _
+              "退货费", "损耗点", "仓租费", "推广费", "测评费", "海外仓费用", "国内运营", "毛利", "毛利率")
+Sheets("结果数据").[a3:aa3].Value = Title
+
+'SQL结果赋值
+Sheets("结果数据").[A4].CopyFromRecordset CONN.Execute(Sql)
+
+'首行统计
+arr = Sheets("结果数据").Cells(4, "a").CurrentRegion
+i = 8
+For x = 1 To 18
+    i = i + 1
+    Sheets("结果数据").Cells(1, i).Value = Application.WorksheetFunction.Sum(Columns(i))
+    If i <> 11 And i <> 12 Then
+        Sheets("结果数据").Cells(2, i).Value = Cells(1, i) / Cells(1, 9)
+    End If
+    Next
+
+'利润计算
+'max_row = Range("A1048576").End(xlUp).Row
+arr = Sheets("结果数据").Cells(3, "a").CurrentRegion
+For i = 4 To UBound(arr)
+    Cells(i, 26) = Cells(i, 9) - Cells(i, 10) - Application.WorksheetFunction.Sum(Range(Cells(i, 13), Cells(i, 25)))
+    If Cells(i, 9) <> 0 Then
+        Cells(i, 27) = Cells(i, 26) / Cells(i, 9)
+    End If
+    Next
+CONN.Close: Set CONN = Nothing
+End Sub
+
