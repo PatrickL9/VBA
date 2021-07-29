@@ -1,26 +1,26 @@
 Sub 按照指定字段拆分工作表()
-    a = Time
+    a = Now()
     Call 排序
-    Dim myRange As Variant
-    Dim myArray
-    Dim titleRange As Range
-    Dim title As String
-    Dim columnNum As Integer
+    Dim title_range As Variant
+    Dim title_array
+    Dim to_break_range As Range
+    Dim to_break_title As String
+    Dim to_break_column As Integer
     
-    'myRange = Application.InputBox(prompt:="请用鼠标点击标题行：", Type:=8)
-    myRange = Rows(1)
-    myArray = WorksheetFunction.Transpose(myRange)
-    'Set titleRange = Application.InputBox(prompt:="请用鼠标点击要拆分的字段，必须是第一行，且为1个单元格", Type:=8)
-    Set titleRange = Cells(1, 5)
+    'title_range = Application.InputBox(prompt:="请用鼠标点击标题行：", Type:=8)
+    title_range = Rows(1)
+    title_array = WorksheetFunction.Transpose(title_range)
+    'Set to_break_range = Application.InputBox(prompt:="请用鼠标点击要拆分的字段，必须是第一行，且为1个单元格", Type:=8)
+    Set to_break_range = Cells(1, 5)
     '需要拆分的字段的名字，用于后续写SQL代码用
-    title = titleRange.Value
+    to_break_title = to_break_range.Value
     '目标数据总列数
-    columnNum = titleRange.Column
+    to_break_column = to_break_range.Column
     
     Application.ScreenUpdating = False
     Application.DisplayAlerts = False
     
-    Dim i&, Myr&, Arr, num&
+    Dim i&, Myr&, to_break_array, num&
     Dim d, k
     '删除其他sheet
     For i = Sheets.Count To 1 Step -1
@@ -29,18 +29,18 @@ Sub 按照指定字段拆分工作表()
         End If
     Next i
     
-    Debug.Print columnNum
+    'Debug.Print to_break_column
     Set d = CreateObject("Scripting.Dictionary")
-    Myr = Worksheets("数据源").UsedRange.Rows.Count
-    Arr = Worksheets("数据源").Range(Cells(2, columnNum), Cells(Myr, columnNum))
+    max_row = Worksheets("数据源").UsedRange.Rows.Count
+    to_break_array = Worksheets("数据源").Range(Cells(2, to_break_column), Cells(max_row, to_break_column))
     
     '''''''''''''''''
     '先拆分非分销SKU
     '''''''''''''''''
     '除标题外的目标数据，每一格赋值到字典中
-    For i = 1 To UBound(Arr)
+    For i = 1 To UBound(to_break_array)
         If Worksheets("数据源").Cells(i + 1, 3).Value = "否" Then
-            d(Arr(i, 1)) = ""
+            d(to_break_array(i, 1)) = ""
         End If
     Next
     '把字典d的key赋给k，k作为字典的keys有剔重作用，k(i)就是该数组的所有不重复值
@@ -55,7 +55,7 @@ Sub 按照指定字段拆分工作表()
                 Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
         End Select
         
-        Sql = "select * from [数据源$] where " & title & " = '" & k(i) & "'"
+        Sql = "select * from [数据源$] where " & to_break_title & " = '" & k(i) & "'"
         Sql = Sql & " and [数据源$].是否分销 = '否'"
         
         '在现有所有sheet之后增加一个sheet,after的用法
@@ -65,8 +65,8 @@ Sub 按照指定字段拆分工作表()
             '每个key，即每个产品代码作为sheet名字
             .Name = k(i)
             '首行标题赋值
-            For num = 1 To UBound(myArray)
-                .Cells(1, num) = myArray(num, 1)
+            For num = 1 To UBound(title_array)
+                .Cells(1, num) = title_array(num, 1)
             Next num
             '从第二行开始把SQL查询结果粘贴
             .Range("A2").CopyFromRecordset Conn.Execute(Sql)
@@ -98,8 +98,8 @@ Sub 按照指定字段拆分工作表()
         '每个key，即每个产品代码作为sheet名字
         .Name = "OTTO分销"
         '首行标题赋值
-        For num = 1 To UBound(myArray)
-            .Cells(1, num) = myArray(num, 1)
+        For num = 1 To UBound(title_array)
+            .Cells(1, num) = title_array(num, 1)
         Next num
         '从第二行开始把SQL查询结果粘贴
         .Range("A2").CopyFromRecordset Conn.Execute(Sql)
@@ -112,8 +112,7 @@ Sub 按照指定字段拆分工作表()
     Application.ScreenUpdating = True
     Dim b
     b = Time - a
-    b = Round(b, 2)
-    MsgBox " 已经拆分完成" & Chr(13) & "一共用时" & b & "秒"
+    MsgBox " 已经拆分完成" & Chr(13) & "一共用时" & Format(b, "ss") & "秒"
     
 End Sub
 Sub 转置粘贴()
@@ -149,3 +148,4 @@ Sub 排序()
     Set oRead_Excel_Conn = Nothing
     Application.ScreenUpdating = True
 End Sub
+
