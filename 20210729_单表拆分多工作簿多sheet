@@ -21,6 +21,7 @@ Sub 按照指定字段拆分工作表()
     
     '设置部门列
     Set depart_range = Cells(1, 1)
+    depart_title = depart_range.Value
     depart_column = depart_range.Column
     
     Application.ScreenUpdating = False
@@ -29,11 +30,11 @@ Sub 按照指定字段拆分工作表()
     Dim j&, i&, max_row&, to_break_array, num&
     Dim d, k, k2
     '删除其他sheet
-'    For i = Sheets.Count To 1 Step -1
-'        If Sheets(i).Name <> "数据源" Then
-'            Sheets(i).Delete
-'        End If
-'    Next i
+    '    For i = Sheets.Count To 1 Step -1
+    '        If Sheets(i).Name <> "数据源" Then
+    '            Sheets(i).Delete
+    '        End If
+    '    Next i
     
     'Debug.Print to_break_column
     Set d = CreateObject("Scripting.Dictionary")
@@ -68,65 +69,77 @@ Sub 按照指定字段拆分工作表()
         
         For i = 0 To UBound(k)
             '设置SQL连接
-            Set Conn = CreateObject("adodb.connection")
+            Set conn = CreateObject("adodb.connection")
             Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
                 Case Is <= 11
-                    Conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
+                    conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
                 Case Is >= 12
-                    Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
+                    conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
             End Select
             
             Sql = "select * from [数据源$] where " & to_break_title & " = '" & k(i) & "'"
+            Sql = Sql & " and " & depart_title & " = '" & k2(j) & "'"
             Sql = Sql & " and [数据源$].是否分销 = '否'"
             
+            Set result = conn.Execute(Sql)
+            If result.bof And result.EOF Then
+                Call macro
+            Else
+                '在现有所有sheet之后增加一个sheet,after的用法
+                Worksheets.Add after:=Sheets(Sheets.Count)
+                
+                With ActiveSheet
+                    '每个key，即每个产品代码作为sheet名字
+                    .Name = k(i)
+                    '首行标题赋值
+                    For num = 1 To UBound(myArray)
+                        .Cells(1, num) = myArray(num, 1)
+                    Next num
+                    '从第二行开始把SQL查询结果粘贴
+                    .Range("A2").CopyFromRecordset conn.Execute(Sql)
+                End With
+                Call 转置粘贴
+            End If
+            conn.Close
+            Set conn = Nothing
+        Next i
+        
+        
+        '''''''''''''''''
+        '再拆分分销SKU
+        '''''''''''''''''
+        '设置SQL连接
+        Set conn = CreateObject("adodb.connection")
+        Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
+            Case Is <= 11
+                conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
+            Case Is >= 12
+                conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
+        End Select
+        
+        Sql = "select * from [数据源$] where [数据源$].是否分销 = '是'"
+        Sql = Sql & " and " & depart_title & " = '" & k2(j) & "'"
+        
+        Set result = conn.Execute(Sql)
+        If result.bof And result.EOF Then
+            Call macro
+        Else
             '在现有所有sheet之后增加一个sheet,after的用法
             Worksheets.Add after:=Sheets(Sheets.Count)
-            
             With ActiveSheet
                 '每个key，即每个产品代码作为sheet名字
-                .Name = k(i)
+                .Name = "OTTO分销"
                 '首行标题赋值
                 For num = 1 To UBound(myArray)
                     .Cells(1, num) = myArray(num, 1)
                 Next num
                 '从第二行开始把SQL查询结果粘贴
-                .Range("A2").CopyFromRecordset Conn.Execute(Sql)
+                .Range("A2").CopyFromRecordset conn.Execute(Sql)
             End With
             Call 转置粘贴
-            Conn.Close
-            Set Conn = Nothing
-        Next i
-        
-               
-        '''''''''''''''''
-        '再拆分分销SKU
-        '''''''''''''''''
-        '设置SQL连接
-        Set Conn = CreateObject("adodb.connection")
-        Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
-            Case Is <= 11
-                Conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
-            Case Is >= 12
-                Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
-        End Select
-        
-        Sql = "select * from [数据源$] where [数据源$].是否分销 = '是'"
-        '在现有所有sheet之后增加一个sheet,after的用法
-        Worksheets.Add after:=Sheets(Sheets.Count)
-        
-        With ActiveSheet
-            '每个key，即每个产品代码作为sheet名字
-            .Name = "OTTO分销"
-            '首行标题赋值
-            For num = 1 To UBound(myArray)
-                .Cells(1, num) = myArray(num, 1)
-            Next num
-            '从第二行开始把SQL查询结果粘贴
-            .Range("A2").CopyFromRecordset Conn.Execute(Sql)
-        End With
-        Call 转置粘贴
-        Conn.Close
-        Set Conn = Nothing
+        End If
+        conn.Close
+        Set conn = Nothing
         
         '保存工作簿
         Sheets("Sheet1").Delete
@@ -138,7 +151,7 @@ Sub 按照指定字段拆分工作表()
     Application.ScreenUpdating = True
     Dim b
     b = Time - a
-    MsgBox " 已经拆分完成" & Chr(13) & "一共用时" & Format(b, "ss") & "秒"
+    MsgBox " 已经拆分完成" & Chr(13) & "一共用时" & Format(b, "mm:ss") & "秒"
     
 End Sub
 Sub 转置粘贴()
@@ -173,5 +186,8 @@ Sub 排序()
     oRead_Excel_Conn.Close
     Set oRead_Excel_Conn = Nothing
     Application.ScreenUpdating = True
+End Sub
+Sub macro()
+    
 End Sub
 
