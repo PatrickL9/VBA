@@ -1,0 +1,58 @@
+Sub 合并文件()
+    Dim num As LongPtr
+    Dim headerCount As Integer
+    Dim temp_path As String
+    Dim filename As String
+    
+    temp_path = get_path()
+    filename = Dir(temp_path & "\*.csv")
+    
+    '清空整个sheet
+    ThisWorkbook.ActiveSheet.UsedRange.ClearContents
+    '禁止屏幕刷新
+    Application.ScreenUpdating = False
+    
+    num = 0
+    headerCount = 8
+    'active_row = 9
+    Do While filename <> ""
+        Debug.Print filename
+        Company = VBA.Split(filename, "-")(0)
+        Set Workbook = Workbooks.Open(temp_path & "\" & filename)
+        num = num + 1
+        'arr = Workbook.Cells(1, 1).currengregion
+        With ThisWorkbook.ActiveSheet
+            Set copyRange = Workbook.Sheets(1).UsedRange
+            If num = 1 And copyRange.Rows.Count - headerCount + 1 > 0 Then
+                copyRange.Offset(headerCount - 1, 0).Resize(copyRange.Rows.Count - headerCount + 1, copyRange.Columns.Count).Copy .Cells(1, 2)
+                .Cells(1, 1) = "公司"
+                For i = 2 To copyRange.Rows.Count - headerCount + 1
+                    .Cells(i, 1) = Company
+                Next i
+            ElseIf copyRange.Rows.Count - headerCount > 0 Then
+                'Set copyRange = Workbook.Sheets(1).UsedRange
+                copyRange.Offset(headerCount, 0).Resize(copyRange.Rows.Count - headerCount, copyRange.Columns.Count).Copy .Cells(.Range("A1048576").End(xlUp).Row + 1, 2)
+                For i = .Range("A1048576").End(xlUp).Row + 1 To .Range("A1048576").End(xlUp).Row + copyRange.Rows.Count - headerCount
+                    .Cells(i, 1) = Company
+                Next i
+            End If
+        End With
+        Workbook.Close fasle
+        filename = Dir
+    Loop
+    MsgBox ("一共合并了" & num & "个文件")
+    Range("A1").Select
+    Range("c:c").EntireColumn.AutoFit
+    '启动屏幕刷新
+    Application.ScreenUpdating = True
+End Sub
+Public Function get_path() As String
+    '差异：msoFileDialogFolderPicker
+    With Application.FileDialog(msoFileDialogFolderPicker)
+       .Title = "选择需要合并文件的文件夹"
+       .InitialFileName = "c:"
+       If .Show Then
+           get_path = .SelectedItems(1)
+       End If
+    End With
+End Function
