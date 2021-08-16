@@ -1,0 +1,368 @@
+Sub 业务员数据拆分()
+    t = Timer
+    '把空单元格置换成0，因为后续SQL运算，0无法计算
+    total_row = Sheets("数据源").Range("A1").CurrentRegion.Rows.Count
+    total_column = Sheets("数据源").Range("A1").CurrentRegion.Columns.Count
+    Sheets("数据源").Range(Range("A2"), Cells(total_row, total_column)).Replace what:="", replacement:=0
+    
+    Dim myRange As Variant
+    Dim myArray
+    Dim to_break_range As Range
+    Dim to_break_title As String
+    Dim to_break_column As Integer
+    Dim ActivePath As String
+    ActivePath = ActiveWorkbook.Path
+    
+    '    '设置标题行
+    '    myRange = Rows(1)
+    '    myArray = WorksheetFunction.Transpose(myRange)
+    '指定销售人员列，用于写SQL用
+    Set saleman_range = Cells(1, 3)
+    saleman_title = saleman_range.Value
+    saleman_column = saleman_range.Column
+    '指定站点列
+    Set station_range = Cells(1, 4)
+    station_title = station_range.Value
+    station_column = station_range.Column
+    '指定周数列
+    Set week_range = Cells(1, 1)
+    week_title = week_range.Value
+    week_column = week_range.Column
+    '关闭屏幕刷新和警告弹窗
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    Dim j&, i&, max_row&, saleman_array, num&
+    Dim d, k, k2
+    Dim first_line
+    '设置表头数组
+    first_line = Array("人数", "销售数量", "一、销售收入", "       减：销售退回 fee4", "二、营业净收入", _
+        "人均销售额", "三、采购成本", "采购运费", "      减：代垫费用", "四、营业净成本", _
+        "五、销售利润", "六、销售利润率", "七、销售费用", "其中：平台佣金", "       自发货运费", _
+        "       FBA运费", "       头程运费", "       关税", "       调拨费", "       仓租", "       广告", _
+        "       测评", "       海外费用", "       销售工资", "       VAT税费", "       汇兑损失", _
+        "       其他费用", "       损耗点", "财务费用（资金占用费）", "八、其他业务利润", _
+        "九、销售毛利", "十、销售毛利率")
+    
+    ''''''''''整体表格，不区分站点'''''''''''''''
+    '销售人员列，写入字典
+    Set d = CreateObject("Scripting.Dictionary")
+    max_row = Worksheets("数据源").Range("A1").CurrentRegion.Rows.Count
+    saleman_array = Worksheets("数据源").Range(Cells(2, saleman_column), Cells(max_row, saleman_column))
+    
+    '除标题外的目标数据，每一格赋值到字典中
+    For i = 1 To UBound(saleman_array)
+        d(saleman_array(i, 1)) = ""
+    Next
+    '把字典d的key赋给k，k作为字典的keys有剔重作用，k(i)就是该数组的所有不重复值
+    k = d.keys
+    
+    '站点列，写入字典
+    Set d2 = CreateObject("Scripting.Dictionary")
+    max_row2 = Worksheets("数据源").Range("A1").CurrentRegion.Rows.Count
+    station_array = Worksheets("数据源").Range(Cells(2, station_column), Cells(max_row2, station_column))
+    
+    '除标题外的目标数据，每一格赋值到字典中
+    For i2 = 1 To UBound(station_array)
+        d2(station_array(i2, 1)) = ""
+    Next
+    '把字典d的key赋给k，k作为字典的keys有剔重作用，k(i)就是该数组的所有不重复值
+    k2 = d2.keys
+    
+    For j = 0 To UBound(k)
+        'Debug.Print k(j)
+        '设置SQL连接
+        Set oRead_Excel_Conn = CreateObject("adodb.connection")
+        Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
+            Case Is <= 11
+                oRead_Excel_Conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
+            Case Is >= 12
+                oRead_Excel_Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
+        End Select
+        Sql = "select * from (Select a.*,switch(week like '%第一周%',1,"
+        Sql = Sql & "week like '%第二周%',2,week like '%第三周%',3,"
+        Sql = Sql & "week like '%第四周%',4,week like '%最后一周%',5) as order_num from ("
+        Sql = Sql & "select week, people_num, qty, gmv, refund ,gmv - refund, (gmv - refund)/people_num, "
+        Sql = Sql & "purchase_cost, purchase_ship, 0 as mat_fee, purchase_cost + purchase_ship, "
+        Sql = Sql & "gmv-refund-purchase_cost-purchase_ship as sale_profit,"
+        Sql = Sql & "(gmv-refund-purchase_cost-purchase_ship)/gmv,"
+        Sql = Sql & "commission+auto_ship + fba_fee + first_ship + tariffs + diaobo_ship + warehouse_fee + advertise"
+        Sql = Sql & "+test+oversea_fee+salary+vat+changes_lost+other_fee+loss as sale_fee,"
+        Sql = Sql & "commission,auto_ship , fba_fee , first_ship , tariffs , diaobo_ship , warehouse_fee , advertise,"
+        Sql = Sql & "test,oversea_fee,salary,vat,changes_lost,other_fee,loss,"
+        Sql = Sql & "financial_fee,0 as other_profit,gmv-refund-purchase_cost-purchase_ship-"
+        Sql = Sql & "(commission+auto_ship+fba_fee+first_ship+tariffs+diaobo_ship+warehouse_fee+advertise"
+        Sql = Sql & "+test+oversea_fee+salary+vat+changes_lost+other_fee+loss) as gross_profit,"
+        Sql = Sql & "(gmv-refund-purchase_cost-purchase_ship-"
+        Sql = Sql & "(commission+auto_ship+fba_fee+first_ship+tariffs+diaobo_ship+warehouse_fee+advertise"
+        Sql = Sql & "+test+oversea_fee+salary+vat+changes_lost+other_fee+loss))/gmv as profit_rate "
+        Sql = Sql & "from (select " & week_title & " as week, 1 as people_num,sum([数量]) as qty,sum([订单总金额(包含客户运费、平台补贴)]) as gmv,"
+        'Sql = "select " & week_title & " , 1 as people_num,sum([数量]) as qty,sum([订单总金额(包含客户运费、平台补贴)]) as gmv,"
+        Sql = Sql & "sum([退货金额]-[退货入库]) as refund,sum([采购成本]) as purchase_cost,sum([采购运费]) as purchase_ship,"
+        Sql = Sql & "sum([平摊平台手续费]) as commission,sum([自发货运费]) as auto_ship,sum([平摊fba费用]) as fba_fee,"
+        Sql = Sql & "sum([头程运费成本]) as first_ship,sum([头程关税成本]) as tariffs,sum([平摊派送运费]) as diaobo_ship,"
+        Sql = Sql & "sum([平摊其它费用]) as warehouse_fee,sum([广告]+[秒杀]) as advertise,sum([刷单]+[佣金]+[礼品成本]+[礼品运费]) as test,"
+        Sql = Sql & "sum([国外仓库费用]) as oversea_fee,sum([销售工资]) as salary,sum([VAT税金]) as vat,sum([汇兑损失]) as changes_lost,"
+        Sql = Sql & "sum([其他费用]) as other_fee,sum([损耗点]) as loss,sum([资金成本]+[利息及手续费]) as financial_fee "
+        Sql = Sql & "from [数据源$] where " & saleman_title & " = '" & k(j) & "' "
+        Sql = Sql & "group by " & week_title & " ) ) a)"
+        Sql = Sql & "order by order_num "
+        
+        '新增sheet，执行SQL并粘贴结果
+        Worksheets.Add after:=Sheets(Sheets.Count)
+        ActiveSheet.Name = k(j)
+        ActiveSheet.Cells(1, 1) = "项目"
+        For num = 0 To UBound(first_line)
+            ActiveSheet.Cells(1, num + 2) = first_line(num)
+        Next num
+        ActiveSheet.Range("A2").CopyFromRecordset oRead_Excel_Conn.Execute(Sql)
+        
+        oRead_Excel_Conn.Close
+        Set oRead_Excel_Conn = Nothing
+        '删掉SQL辅助列
+        ActiveSheet.Range("AH:AH").Delete
+        '查询结果转置
+        Call 转置粘贴
+        
+        '设置表格颜色
+        ActiveSheet.Cells(2, 1) = k(j)
+        ActiveSheet.Cells(1, 2) = "贝思瑞婴童用品有限公司电商销售分析经营情况汇总表"
+        ActiveSheet.Cells(1, 2).Characters().Font.Size = 14
+        ActiveSheet.Cells(1, 2).Characters().Font.FontStyle = "加粗"
+        
+        'now_column是统计包含第一列以及周数列数，用于后续第二表格设置以及第一表格最后两列
+        now_column = ActiveSheet.Range("A3").CurrentRegion.Columns.Count
+        
+        '设置第一表格最后两列数值
+        For y = 4 To 35
+            '计算增减额
+            If now_column > 3 Then
+                ActiveSheet.Cells(y, now_column + 1) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
+            End If
+            '计算当月累计
+            'ActiveSheet.Cells(y, now_column + 2) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
+        Next y
+        '设置第一表格最后两列格式
+        ActiveSheet.Cells(3, now_column + 1) = "增减额"
+        ActiveSheet.Cells(3, now_column + 2) = "当月累计数"
+        ActiveSheet.Cells(3, now_column + 1).Interior.Color = RGB(155, 194, 230)
+        ActiveSheet.Cells(3, now_column + 1).Characters().Font.FontStyle = "加粗"
+        ActiveSheet.Cells(3, now_column + 1).HorizontalAlignment = xlCenter
+        ActiveSheet.Cells(3, now_column + 2).Interior.Color = RGB(155, 194, 230)
+        ActiveSheet.Cells(3, now_column + 2).HorizontalAlignment = xlCenter
+        ActiveSheet.Cells(3, now_column + 2).Characters().Font.FontStyle = "加粗"
+        ActiveSheet.Columns(now_column + 1).EntireColumn.AutoFit
+        ActiveSheet.Columns(now_column + 2).EntireColumn.AutoFit
+        
+        ''''''第二表格'''''''''''
+        For x = 1 To now_column
+            ActiveSheet.Cells(3, x).Interior.Color = RGB(155, 194, 230)
+            ActiveSheet.Cells(3, x).HorizontalAlignment = xlCenter
+            ActiveSheet.Cells(3, x).Characters().Font.FontStyle = "加粗"
+            ActiveSheet.Cells(37, x).Interior.Color = RGB(155, 194, 230)
+            ActiveSheet.Cells(37, x).HorizontalAlignment = xlCenter
+            ActiveSheet.Cells(37, x).Characters().Font.FontStyle = "加粗"
+            ActiveSheet.Cells(37, x) = Cells(3, x)
+            If x > 1 Then
+                ActiveSheet.Cells(38, x) = ActiveSheet.Cells(7, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(39, x) = ActiveSheet.Cells(10, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(40, x) = ActiveSheet.Cells(11, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(41, x) = ActiveSheet.Cells(17, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(42, x) = ActiveSheet.Cells(18, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(43, x) = ActiveSheet.Cells(19, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(44, x) = ActiveSheet.Cells(20, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(45, x) = ActiveSheet.Cells(21, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(46, x) = ActiveSheet.Cells(22, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(47, x) = ActiveSheet.Cells(23, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(48, x) = ActiveSheet.Cells(24, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(49, x) = ActiveSheet.Cells(25, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(50, x) = ActiveSheet.Cells(26, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(51, x) = ActiveSheet.Cells(27, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(52, x) = ActiveSheet.Cells(28, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(53, x) = ActiveSheet.Cells(29, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(54, x) = ActiveSheet.Cells(30, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(55, x) = ActiveSheet.Cells(31, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(56, x) = ActiveSheet.Cells(34, x) / ActiveSheet.Cells(6, x)
+                ActiveSheet.Cells(57, x) = ActiveSheet.Cells(32, x) / ActiveSheet.Cells(6, x)
+            End If
+        Next x
+        
+        '设置第二表格表头和首列
+        first_column_array = Array("      退货占比", "      采购占比", "      采购运费", "      平台佣金", _
+            "      自发货运费", "      FBA运费", "      头程运费", "      关税", _
+            "      调拨费", "      仓租", "      广告", "       测评", "      海外费用", _
+            "      销售工资", "      VAT税费", "      汇兑损失", "      其他费用", _
+            "      损耗点", "      销售毛利率", "财务费用（资金占用费）")
+        For m = 0 To UBound(first_column_array)
+            ActiveSheet.Cells(38 + m, 1) = first_column_array(m)
+            ActiveSheet.Cells(38 + m, 1).Interior.Color = RGB(155, 194, 230)
+        Next m
+        '设置第二表格格式
+        ActiveSheet.Range(Cells(38, 2), Cells(57, 6)).NumberFormatLocal = "0.00%"
+    Next j
+    
+    
+    ''''''OTTO站点数据拆分''''''''''''
+    For a2 = 0 To UBound(k)
+        'Debug.Print k(j)
+        '设置SQL连接
+        Set oRead_Excel_Conn = CreateObject("adodb.connection")
+        Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
+            Case Is <= 11
+                oRead_Excel_Conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
+            Case Is >= 12
+                oRead_Excel_Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
+        End Select
+        Sql = "select * from (Select a.*,switch(week like '%第一周%',1,"
+        Sql = Sql & "week like '%第二周%',2,week like '%第三周%',3,"
+        Sql = Sql & "week like '%第四周%',4,week like '%最后一周%',5) as order_num from ("
+        Sql = Sql & "select week, people_num, qty, gmv, refund ,gmv - refund, (gmv - refund)/people_num, "
+        Sql = Sql & "purchase_cost, purchase_ship, 0 as mat_fee, purchase_cost + purchase_ship, "
+        Sql = Sql & "gmv-refund-purchase_cost-purchase_ship as sale_profit,"
+        Sql = Sql & "(gmv-refund-purchase_cost-purchase_ship)/gmv,"
+        Sql = Sql & "commission+auto_ship + fba_fee + first_ship + tariffs + diaobo_ship + warehouse_fee + advertise"
+        Sql = Sql & "+test+oversea_fee+salary+vat+changes_lost+other_fee+loss as sale_fee,"
+        Sql = Sql & "commission,auto_ship , fba_fee , first_ship , tariffs , diaobo_ship , warehouse_fee , advertise,"
+        Sql = Sql & "test,oversea_fee,salary,vat,changes_lost,other_fee,loss,"
+        Sql = Sql & "financial_fee,0 as other_profit,gmv-refund-purchase_cost-purchase_ship-"
+        Sql = Sql & "(commission+auto_ship+fba_fee+first_ship+tariffs+diaobo_ship+warehouse_fee+advertise"
+        Sql = Sql & "+test+oversea_fee+salary+vat+changes_lost+other_fee+loss) as gross_profit,"
+        Sql = Sql & "(gmv-refund-purchase_cost-purchase_ship-"
+        Sql = Sql & "(commission+auto_ship+fba_fee+first_ship+tariffs+diaobo_ship+warehouse_fee+advertise"
+        Sql = Sql & "+test+oversea_fee+salary+vat+changes_lost+other_fee+loss))/gmv as profit_rate "
+        Sql = Sql & "from (select " & week_title & " as week, 1 as people_num,sum([数量]) as qty,sum([订单总金额(包含客户运费、平台补贴)]) as gmv,"
+        'Sql = "select " & week_title & " , 1 as people_num,sum([数量]) as qty,sum([订单总金额(包含客户运费、平台补贴)]) as gmv,"
+        Sql = Sql & "sum([退货金额]-[退货入库]) as refund,sum([采购成本]) as purchase_cost,sum([采购运费]) as purchase_ship,"
+        Sql = Sql & "sum([平摊平台手续费]) as commission,sum([自发货运费]) as auto_ship,sum([平摊fba费用]) as fba_fee,"
+        Sql = Sql & "sum([头程运费成本]) as first_ship,sum([头程关税成本]) as tariffs,sum([平摊派送运费]) as diaobo_ship,"
+        Sql = Sql & "sum([平摊其它费用]) as warehouse_fee,sum([广告]+[秒杀]) as advertise,sum([刷单]+[佣金]+[礼品成本]+[礼品运费]) as test,"
+        Sql = Sql & "sum([国外仓库费用]) as oversea_fee,sum([销售工资]) as salary,sum([VAT税金]) as vat,sum([汇兑损失]) as changes_lost,"
+        Sql = Sql & "sum([其他费用]) as other_fee,sum([损耗点]) as loss,sum([资金成本]+[利息及手续费]) as financial_fee "
+        Sql = Sql & "from [数据源$] where " & saleman_title & " = '" & k(a2) & "' "
+        Sql = Sql & " and " & station_title & "='OTTO' "
+        Sql = Sql & "group by " & week_title & " ) ) a)"
+        Sql = Sql & "order by order_num "
+        
+        Set result = oRead_Excel_Conn.Execute(Sql)
+        If result.bof And result.EOF Then
+            Call macro
+        Else
+            '新增sheet，执行SQL并粘贴结果
+            Worksheets.Add after:=Sheets(Sheets.Count)
+            ActiveSheet.Name = k(a2) & "OTTO"
+            ActiveSheet.Cells(1, 1) = "项目"
+            For num = 0 To UBound(first_line)
+                ActiveSheet.Cells(1, num + 2) = first_line(num)
+            Next num
+            ActiveSheet.Range("A2").CopyFromRecordset oRead_Excel_Conn.Execute(Sql)
+            
+            oRead_Excel_Conn.Close
+            Set oRead_Excel_Conn = Nothing
+            '删掉SQL辅助列
+            ActiveSheet.Range("AH:AH").Delete
+            '查询结果转置
+            Call 转置粘贴
+            
+            '设置表格颜色
+            ActiveSheet.Cells(2, 1) = k2(j2)
+            ActiveSheet.Cells(1, 2) = "贝思瑞婴童用品有限公司电商销售分析经营情况汇总表"
+            ActiveSheet.Cells(1, 2).Characters().Font.Size = 14
+            ActiveSheet.Cells(1, 2).Characters().Font.FontStyle = "加粗"
+            
+            'now_column是统计包含第一列以及周数列数，用于后续第二表格设置以及第一表格最后两列
+            now_column = ActiveSheet.Range("A3").CurrentRegion.Columns.Count
+            
+            '设置第一表格最后两列数值
+            For y = 4 To 35
+                '计算增减额
+                If now_column > 3 Then
+                    ActiveSheet.Cells(y, now_column + 1) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
+                End If
+                '计算当月累计
+                'ActiveSheet.Cells(y, now_column + 2) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
+            Next y
+            '设置第一表格最后两列格式
+            ActiveSheet.Cells(3, now_column + 1) = "增减额"
+            ActiveSheet.Cells(3, now_column + 2) = "当月累计数"
+            ActiveSheet.Cells(3, now_column + 1).Interior.Color = RGB(155, 194, 230)
+            ActiveSheet.Cells(3, now_column + 1).Characters().Font.FontStyle = "加粗"
+            ActiveSheet.Cells(3, now_column + 1).HorizontalAlignment = xlCenter
+            ActiveSheet.Cells(3, now_column + 2).Interior.Color = RGB(155, 194, 230)
+            ActiveSheet.Cells(3, now_column + 2).HorizontalAlignment = xlCenter
+            ActiveSheet.Cells(3, now_column + 2).Characters().Font.FontStyle = "加粗"
+            ActiveSheet.Columns(now_column + 1).EntireColumn.AutoFit
+            ActiveSheet.Columns(now_column + 2).EntireColumn.AutoFit
+            
+            ''''''第二表格'''''''''''
+            For x = 1 To now_column
+                ActiveSheet.Cells(3, x).Interior.Color = RGB(155, 194, 230)
+                ActiveSheet.Cells(3, x).HorizontalAlignment = xlCenter
+                ActiveSheet.Cells(3, x).Characters().Font.FontStyle = "加粗"
+                ActiveSheet.Cells(37, x).Interior.Color = RGB(155, 194, 230)
+                ActiveSheet.Cells(37, x).HorizontalAlignment = xlCenter
+                ActiveSheet.Cells(37, x).Characters().Font.FontStyle = "加粗"
+                ActiveSheet.Cells(37, x) = Cells(3, x)
+                If x > 1 Then
+                    ActiveSheet.Cells(38, x) = ActiveSheet.Cells(7, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(39, x) = ActiveSheet.Cells(10, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(40, x) = ActiveSheet.Cells(11, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(41, x) = ActiveSheet.Cells(17, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(42, x) = ActiveSheet.Cells(18, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(43, x) = ActiveSheet.Cells(19, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(44, x) = ActiveSheet.Cells(20, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(45, x) = ActiveSheet.Cells(21, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(46, x) = ActiveSheet.Cells(22, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(47, x) = ActiveSheet.Cells(23, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(48, x) = ActiveSheet.Cells(24, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(49, x) = ActiveSheet.Cells(25, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(50, x) = ActiveSheet.Cells(26, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(51, x) = ActiveSheet.Cells(27, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(52, x) = ActiveSheet.Cells(28, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(53, x) = ActiveSheet.Cells(29, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(54, x) = ActiveSheet.Cells(30, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(55, x) = ActiveSheet.Cells(31, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(56, x) = ActiveSheet.Cells(34, x) / ActiveSheet.Cells(6, x)
+                    ActiveSheet.Cells(57, x) = ActiveSheet.Cells(32, x) / ActiveSheet.Cells(6, x)
+                End If
+            Next x
+            
+            '设置第二表格表头和首列
+            first_column_array = Array("      退货占比", "      采购占比", "      采购运费", "      平台佣金", _
+                "      自发货运费", "      FBA运费", "      头程运费", "      关税", _
+                "      调拨费", "      仓租", "      广告", "       测评", "      海外费用", _
+                "      销售工资", "      VAT税费", "      汇兑损失", "      其他费用", _
+                "      损耗点", "      销售毛利率", "财务费用（资金占用费）")
+            For m = 0 To UBound(first_column_array)
+                ActiveSheet.Cells(38 + m, 1) = first_column_array(m)
+                ActiveSheet.Cells(38 + m, 1).Interior.Color = RGB(155, 194, 230)
+            Next m
+            '设置第二表格格式
+            ActiveSheet.Range(Cells(38, 2), Cells(57, 6)).NumberFormatLocal = "0.00%"
+        End If
+    Next a2
+    
+    '重启屏幕刷新和警告弹窗
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+End Sub
+Sub 转置粘贴()
+    Dim copy_content()
+    copyRange = ActiveSheet.UsedRange
+    copy_content = WorksheetFunction.Transpose(copyRange)
+    ActiveSheet.UsedRange.ClearContents
+    ActiveSheet.Range("A3").Resize(UBound(copy_content), UBound(copy_content, 2)) = copy_content
+    
+    ActiveSheet.Range("A:I").NumberFormatLocal = "0.00_ "
+    ActiveSheet.Range("A:I").EntireColumn.AutoFit
+    ActiveSheet.Range("35:35").NumberFormatLocal = "0.00%"
+    ActiveSheet.Range("15:15").NumberFormatLocal = "0.00%"
+    ActiveSheet.Range("4:4").NumberFormatLocal = "0"
+    For Each rn In ActiveSheet.Range("a3", "a35")
+        rn.Interior.Color = RGB(155, 194, 230)
+        'rn.Characters().Font.FontStyle = "加粗"
+    Next
+End Sub
+Sub macro()
+    
+End Sub
+
