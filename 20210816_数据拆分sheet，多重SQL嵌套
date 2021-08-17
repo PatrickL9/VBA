@@ -1,9 +1,26 @@
 Sub 业务员数据拆分()
     t = Timer
+    '关闭屏幕刷新和警告弹窗
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    '删除其他sheet
+    For ii = Sheets.Count To 1 Step -1
+        If Sheets(ii).Name <> "数据源" And Sheets(ii).Name <> "注意事项" And Sheets(ii).Name <> "个人目标" Then
+            Sheets(ii).Delete
+        End If
+    Next ii
+    
     '把空单元格置换成0，因为后续SQL运算，0无法计算
+    Sheets("数据源").Activate
     total_row = Sheets("数据源").Range("A1").CurrentRegion.Rows.Count
     total_column = Sheets("数据源").Range("A1").CurrentRegion.Columns.Count
-    Sheets("数据源").Range(Range("A2"), Cells(total_row, total_column)).Replace what:="", replacement:=0
+    Sheets("数据源").Range(Cells(2, 2), Cells(total_row, total_column)).Replace what:="", replacement:=0
+    Debug.Print total_row
+    Debug.Print total_column
+    
+    Dim j&, i&, max_row&, saleman_array, num&
+    Dim d, k, k2
+    Dim first_line
     
     Dim myRange As Variant
     Dim myArray
@@ -28,13 +45,7 @@ Sub 业务员数据拆分()
     Set week_range = Cells(1, 1)
     week_title = week_range.Value
     week_column = week_range.Column
-    '关闭屏幕刷新和警告弹窗
-    Application.ScreenUpdating = False
-    Application.DisplayAlerts = False
-    
-    Dim j&, i&, max_row&, saleman_array, num&
-    Dim d, k, k2
-    Dim first_line
+
     '设置表头数组
     first_line = Array("人数", "销售数量", "一、销售收入", "       减：销售退回 fee4", "二、营业净收入", _
         "人均销售额", "三、采购成本", "采购运费", "      减：代垫费用", "四、营业净成本", _
@@ -68,6 +79,12 @@ Sub 业务员数据拆分()
     Next
     '把字典d的key赋给k，k作为字典的keys有剔重作用，k(i)就是该数组的所有不重复值
     k2 = d2.keys
+    
+    '设置个人目标范围
+    Sheets("个人目标").Activate
+    find_row = Sheets("个人目标").Range("A2").CurrentRegion.Rows.Count
+    Set findRange = Sheets("个人目标").Range(Cells(1, 2), Cells(find_row, 2))
+    find_array = Application.Transpose(findRange)
     
     For j = 0 To UBound(k)
         'Debug.Print k(j)
@@ -139,20 +156,39 @@ Sub 业务员数据拆分()
             If now_column > 3 Then
                 ActiveSheet.Cells(y, now_column + 1) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
             End If
+            If now_column = 3 And InStr(ActiveSheet.Cells(3, 2), "上一周") > 0 Then
+                ActiveSheet.Cells(y, now_column + 1) = ActiveSheet.Cells(y, now_column) - ActiveSheet.Cells(y, now_column - 1)
+            End If
             '计算当月累计
             'ActiveSheet.Cells(y, now_column + 2) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
         Next y
-        '设置第一表格最后两列格式
+            
+        '匹配当月销售目标
+        For t = 1 To UBound(find_array)
+            If find_array(t) = k(j) Then
+                ActiveSheet.Cells(6, now_column + 3) = Sheets("个人目标").Cells(t, 3)
+            End If
+        Next t
+
+        '设置第一表格最后三列格式
         ActiveSheet.Cells(3, now_column + 1) = "增减额"
-        ActiveSheet.Cells(3, now_column + 2) = "当月累计数"
         ActiveSheet.Cells(3, now_column + 1).Interior.Color = RGB(155, 194, 230)
         ActiveSheet.Cells(3, now_column + 1).Characters().Font.FontStyle = "加粗"
         ActiveSheet.Cells(3, now_column + 1).HorizontalAlignment = xlCenter
+        ActiveSheet.Columns(now_column + 1).EntireColumn.AutoFit
+        
+        ActiveSheet.Cells(3, now_column + 2) = "当月累计数"
         ActiveSheet.Cells(3, now_column + 2).Interior.Color = RGB(155, 194, 230)
         ActiveSheet.Cells(3, now_column + 2).HorizontalAlignment = xlCenter
         ActiveSheet.Cells(3, now_column + 2).Characters().Font.FontStyle = "加粗"
-        ActiveSheet.Columns(now_column + 1).EntireColumn.AutoFit
         ActiveSheet.Columns(now_column + 2).EntireColumn.AutoFit
+        
+        ActiveSheet.Cells(3, now_column + 3) = "当月销售目标"
+        ActiveSheet.Cells(3, now_column + 3).Interior.Color = RGB(155, 194, 230)
+        ActiveSheet.Cells(3, now_column + 3).HorizontalAlignment = xlCenter
+        ActiveSheet.Cells(3, now_column + 3).Characters().Font.FontStyle = "加粗"
+        ActiveSheet.Columns(now_column + 3).EntireColumn.AutoFit
+        
         
         ''''''第二表格'''''''''''
         For x = 1 To now_column
@@ -264,7 +300,7 @@ Sub 业务员数据拆分()
             Call 转置粘贴
             
             '设置表格颜色
-            ActiveSheet.Cells(2, 1) = k2(j2)
+            ActiveSheet.Cells(2, 1) = k(a2)
             ActiveSheet.Cells(1, 2) = "贝思瑞婴童用品有限公司电商销售分析经营情况汇总表"
             ActiveSheet.Cells(1, 2).Characters().Font.Size = 14
             ActiveSheet.Cells(1, 2).Characters().Font.FontStyle = "加粗"
