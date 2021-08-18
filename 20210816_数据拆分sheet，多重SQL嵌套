@@ -11,7 +11,6 @@ Sub 业务员数据拆分()
     Next ii
     
     '把空单元格置换成0，因为后续SQL运算，0无法计算
-    Sheets("数据源").Activate
     total_row = Sheets("数据源").Range("A1").CurrentRegion.Rows.Count
     total_column = Sheets("数据源").Range("A1").CurrentRegion.Columns.Count
     Sheets("数据源").Range(Cells(2, 2), Cells(total_row, total_column)).Replace what:="", replacement:=0
@@ -96,10 +95,7 @@ Sub 业务员数据拆分()
             Case Is >= 12
                 oRead_Excel_Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
         End Select
-        Sql = "select * from (Select a.*,switch(week like '%第一周%',1,"
-        Sql = Sql & "week like '%第二周%',2,week like '%第三周%',3,"
-        Sql = Sql & "week like '%第四周%',4,week like '%最后一周%',5) as order_num from ("
-        Sql = Sql & "select week, people_num, qty, gmv, refund ,gmv - refund, (gmv - refund)/people_num, "
+        Sql = "select week, people_num, qty, gmv, refund ,gmv - refund, (gmv - refund)/people_num, "
         Sql = Sql & "purchase_cost, purchase_ship, 0 as mat_fee, purchase_cost + purchase_ship, "
         Sql = Sql & "gmv-refund-purchase_cost-purchase_ship as sale_profit,"
         Sql = Sql & "(gmv-refund-purchase_cost-purchase_ship)/gmv,"
@@ -122,8 +118,8 @@ Sub 业务员数据拆分()
         Sql = Sql & "sum([国外仓库费用]) as oversea_fee,sum([销售工资]) as salary,sum([VAT税金]) as vat,sum([汇兑损失]) as changes_lost,"
         Sql = Sql & "sum([其他费用]) as other_fee,sum([损耗点]) as loss,sum([资金成本]+[利息及手续费]) as financial_fee "
         Sql = Sql & "from [数据源$] where " & saleman_title & " = '" & k(j) & "' "
-        Sql = Sql & "group by " & week_title & " ) ) a)"
-        Sql = Sql & "order by order_num "
+        Sql = Sql & "group by " & week_title & " ) "
+
         
         '新增sheet，执行SQL并粘贴结果
         Worksheets.Add after:=Sheets(Sheets.Count)
@@ -153,10 +149,7 @@ Sub 业务员数据拆分()
         '设置第一表格最后两列数值
         For y = 4 To 35
             '计算增减额
-            If now_column > 3 Then
-                ActiveSheet.Cells(y, now_column + 1) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
-            End If
-            If now_column = 3 And InStr(ActiveSheet.Cells(3, 2), "上一周") > 0 Then
+            If now_column >= 3 Then
                 ActiveSheet.Cells(y, now_column + 1) = ActiveSheet.Cells(y, now_column) - ActiveSheet.Cells(y, now_column - 1)
             End If
             '计算当月累计
@@ -249,10 +242,7 @@ Sub 业务员数据拆分()
             Case Is >= 12
                 oRead_Excel_Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
         End Select
-        Sql = "select * from (Select a.*,switch(week like '%第一周%',1,"
-        Sql = Sql & "week like '%第二周%',2,week like '%第三周%',3,"
-        Sql = Sql & "week like '%第四周%',4,week like '%最后一周%',5) as order_num from ("
-        Sql = Sql & "select week, people_num, qty, gmv, refund ,gmv - refund, (gmv - refund)/people_num, "
+        Sql = "select week, people_num, qty, gmv, refund ,gmv - refund, (gmv - refund)/people_num, "
         Sql = Sql & "purchase_cost, purchase_ship, 0 as mat_fee, purchase_cost + purchase_ship, "
         Sql = Sql & "gmv-refund-purchase_cost-purchase_ship as sale_profit,"
         Sql = Sql & "(gmv-refund-purchase_cost-purchase_ship)/gmv,"
@@ -276,8 +266,7 @@ Sub 业务员数据拆分()
         Sql = Sql & "sum([其他费用]) as other_fee,sum([损耗点]) as loss,sum([资金成本]+[利息及手续费]) as financial_fee "
         Sql = Sql & "from [数据源$] where " & saleman_title & " = '" & k(a2) & "' "
         Sql = Sql & " and " & station_title & "='OTTO' "
-        Sql = Sql & "group by " & week_title & " ) ) a)"
-        Sql = Sql & "order by order_num "
+        Sql = Sql & "group by " & week_title & " ) "
         
         Set result = oRead_Excel_Conn.Execute(Sql)
         If result.bof And result.EOF Then
@@ -309,14 +298,14 @@ Sub 业务员数据拆分()
             now_column = ActiveSheet.Range("A3").CurrentRegion.Columns.Count
             
             '设置第一表格最后两列数值
-            For y = 4 To 35
-                '计算增减额
-                If now_column > 3 Then
-                    ActiveSheet.Cells(y, now_column + 1) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
-                End If
-                '计算当月累计
-                'ActiveSheet.Cells(y, now_column + 2) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
-            Next y
+        For y = 4 To 35
+            '计算增减额
+            If now_column >= 3 Then
+                ActiveSheet.Cells(y, now_column + 1) = ActiveSheet.Cells(y, now_column) - ActiveSheet.Cells(y, now_column - 1)
+            End If
+            '计算当月累计
+            'ActiveSheet.Cells(y, now_column + 2) = ActiveSheet.Cells(y, now_column - 1) - ActiveSheet.Cells(y, now_column - 2)
+        Next y
             '设置第一表格最后两列格式
             ActiveSheet.Cells(3, now_column + 1) = "增减额"
             ActiveSheet.Cells(3, now_column + 2) = "当月累计数"
@@ -401,4 +390,3 @@ End Sub
 Sub macro()
     
 End Sub
-
