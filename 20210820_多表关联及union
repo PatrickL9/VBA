@@ -1,6 +1,13 @@
 Sub 数据统计()
+
+    t = Timer
+    '关闭屏幕刷新和警告弹窗
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
     '清空现有结果数据
     max_row = Sheets("指标监控").UsedRange.Rows.Count
+    Sheets("指标监控").Cells(3, 1) = "test"
     '注意，若表格已经是空表，则会报错，有风险慎用
     Sheets("指标监控").Range(Cells(3, 1), Cells(max_row, 35)).Clear
     
@@ -10,6 +17,19 @@ Sub 数据统计()
 '    Sheets("周报数据").Range(Cells(2, 2), Cells(total_row, total_column)).Replace what:="", replacement:=0
 '    Debug.Print total_row
 '    Debug.Print total_column
+    
+    '读取临界值
+    price_area = Sheets("异常值").Cells(2, 3)
+    firstship_area = Sheets("异常值").Cells(3, 3)
+    fbafee_area = Sheets("异常值").Cells(4, 3)
+    warehouse_area = Sheets("异常值").Cells(5, 3)
+    tariffs_area = Sheets("异常值").Cells(6, 3)
+    refund_area = Sheets("异常值").Cells(7, 3)
+    advertise_area = Sheets("异常值").Cells(8, 3)
+    oversea_area = Sheets("异常值").Cells(9, 3)
+    inside_country_area = Sheets("异常值").Cells(10, 3)
+    purchase_area = Sheets("异常值").Cells(11, 3)
+    profit_rate_area = Sheets("异常值").Cells(12, 3)
     
     '设置SQL连接
     Set oRead_Excel_Conn = CreateObject("adodb.connection")
@@ -30,7 +50,7 @@ Sub 数据统计()
     '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
     'SQL语句
-    Sql = "select station,sku, "
+    Sql = "select iif(sku is null,站点,station),iif(sku is null,code,sku), "
     Sql = Sql & " [售价-含税],price,(price - [售价-含税])/[售价-含税], "
     Sql = Sql & " [头程占比（%）],first_ship,first_ship - [头程占比（%）], "
     Sql = Sql & " [FBAfee占比（%）],FBA_fee,FBA_fee - [FBAfee占比（%）], "
@@ -66,11 +86,31 @@ Sub 数据统计()
     Sql = Sql & " from [周报数据$] x left join (select * from [汇率$]) y on x.[站点] = y.[站点] "
     Sql = Sql & " group by x.[站点],[产品代码] ) a"
     Sql = Sql & " right join (select * from [成本核算数据$]) b on a.station = b.[站点] and a.sku = b.[CODE] "
-    Sql = Sql & ") where 1=1 "
-    Sql = Sql & " order by station,sku "
+    Sql = Sql & ") where sku is not null or code is not null"
+    Sql = Sql & " order by station desc,sku desc"
     
     Sheets("指标监控").Range("A3").CopyFromRecordset oRead_Excel_Conn.Execute(Sql)
+
+    used_row = Sheets("指标监控").Range("A3").CurrentRegion.Rows.Count
+    For i = 3 To used_row
+        If Cells(i, 5) < price_area * -1 And Cells(i, 5) <> "" Then Cells(i, 5).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 8) > firstship_area And Cells(i, 8) <> "" Then Cells(i, 8).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 11) > fbafee_area And Cells(i, 11) <> "" Then Cells(i, 11).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 14) > warehouse_area And Cells(i, 14) <> "" Then Cells(i, 14).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 17) > tariffs_area And Cells(i, 17) <> "" Then Cells(i, 17).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 20) > refund_area And Cells(i, 20) <> "" Then Cells(i, 20).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 23) > advertise_area And Cells(i, 23) <> "" Then Cells(i, 23).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 26) > oversea_area And Cells(i, 26) <> "" Then Cells(i, 26).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 29) > inside_country_area And Cells(i, 29) <> "" Then Cells(i, 29).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 32) > purchase_area And Cells(i, 32) <> "" Then Cells(i, 32).Interior.Color = RGB(255, 135, 135)
+        If Cells(i, 35) < profit_rate_area And Cells(i, 35) <> "" Then Cells(i, 35).Interior.Color = RGB(255, 135, 135)
+    Next i
+    
     Sheets("指标监控").Range("A:B").EntireColumn.AutoFit
+    'Sheets("指标监控").Range("D:D").NumberFormatLocal = "0.00_"
     Sheets("指标监控").Range("E:AI").NumberFormatLocal = "0.00%"
     
+    '开启屏幕刷新和警告弹窗
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
 End Sub
