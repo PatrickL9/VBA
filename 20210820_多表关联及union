@@ -1,0 +1,76 @@
+Sub 数据统计()
+    '清空现有结果数据
+    max_row = Sheets("指标监控").UsedRange.Rows.Count
+    '注意，若表格已经是空表，则会报错，有风险慎用
+    Sheets("指标监控").Range(Cells(3, 1), Cells(max_row, 35)).Clear
+    
+    '把空单元格置换成0，因为后续SQL运算，0无法计算
+'    total_row = Sheets("周报数据").Range("A1").CurrentRegion.Rows.Count
+'    total_column = Sheets("周报数据").Range("A1").CurrentRegion.Columns.Count
+'    Sheets("周报数据").Range(Cells(2, 2), Cells(total_row, total_column)).Replace what:="", replacement:=0
+'    Debug.Print total_row
+'    Debug.Print total_column
+    
+    '设置SQL连接
+    Set oRead_Excel_Conn = CreateObject("adodb.connection")
+    Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
+        Case Is <= 11
+            oRead_Excel_Conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
+        Case Is >= 12
+            oRead_Excel_Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
+    End Select
+    
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    '    大坑！ACCESS竟然没有全关联，变通处理如下：(有兴趣请百度Jet-SQL)
+    '
+    '    select * from A left join B on A.id=B.id
+    '    Union
+    '    select * from A right join B on A.id=B.id
+    '
+    '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+    'SQL语句
+    Sql = "select station,sku, "
+    Sql = Sql & " [售价-含税],price,(price - [售价-含税])/[售价-含税], "
+    Sql = Sql & " [头程占比（%）],first_ship,first_ship - [头程占比（%）], "
+    Sql = Sql & " [FBAfee占比（%）],FBA_fee,FBA_fee - [FBAfee占比（%）], "
+    Sql = Sql & " [FBA仓储占比（%）],warehouse_fee,warehouse_fee - [FBA仓储占比（%）], "
+    Sql = Sql & " [关税占比（%）],tariffs,tariffs - [关税占比（%）], "
+    Sql = Sql & " [退货率（%）],refund,refund - [退货率（%）], "
+    Sql = Sql & " [推广费（%）],advertise,advertise - [推广费（%）], "
+    Sql = Sql & " [海外仓（%）],oversea,oversea - [海外仓（%）], "
+    Sql = Sql & " [国内运营（%）],inside_country,inside_country - [国内运营（%）], "
+    Sql = Sql & " [采购价占比（%）],purchase,purchase - [采购价占比（%）], "
+    Sql = Sql & " [利润率（%）],profit_rate,profit_rate - [利润率（%）] "
+    Sql = Sql & " from ("
+    Sql = Sql & " select * from ("
+    Sql = Sql & " select x.[站点] as station,[产品代码] as sku, "
+    Sql = Sql & " iif(sum([数量]) = 0,0,sum([订单总金额(含税)]/[汇率]) / sum([数量]))  as price,iif(sum([订单总金额(不含税)]) = 0,0,sum([头程运费成本]) / sum([订单总金额(不含税)])) as first_ship, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([平摊fba费用]) / sum([订单总金额(不含税)])) as FBA_fee, iif(sum([订单总金额(不含税)]) = 0,0,sum([仓租费]) / sum([订单总金额(不含税)])) as warehouse_fee, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([头程关税成本]) / sum([订单总金额(不含税)]))  as tariffs, iif(sum([订单总金额(不含税)]) = 0,0,sum([退货费]) / sum([订单总金额(不含税)])) as refund, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([推广费] + [测评费]) / sum([订单总金额(不含税)])) as advertise, iif(sum([订单总金额(不含税)]) = 0,0,sum([海外仓费用]) / sum([订单总金额(不含税)])) as oversea, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([国内运营]) / sum([订单总金额(不含税)])) as inside_country, iif(sum([订单总金额(不含税)]) = 0,0,sum([采购成本]) / sum([订单总金额(不含税)])) as purchase, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([毛利]) / sum([订单总金额(不含税)])) as profit_rate "
+    Sql = Sql & " from [周报数据$] x left join (select * from [汇率$]) y on x.[站点] = y.[站点] "
+    Sql = Sql & " group by x.[站点],[产品代码] ) a"
+    Sql = Sql & " left join (select * from [成本核算数据$]) b on a.station = b.[站点] and a.sku = b.[CODE] "
+    Sql = Sql & " union "
+    Sql = Sql & " select * from ("
+    Sql = Sql & " select x.[站点] as station,[产品代码] as sku, "
+    Sql = Sql & " iif(sum([数量]) = 0,0,sum([订单总金额(含税)]/[汇率]) / sum([数量]))  as price,iif(sum([订单总金额(不含税)]) = 0,0,sum([头程运费成本]) / sum([订单总金额(不含税)])) as first_ship, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([平摊fba费用]) / sum([订单总金额(不含税)])) as FBA_fee, iif(sum([订单总金额(不含税)]) = 0,0,sum([仓租费]) / sum([订单总金额(不含税)])) as warehouse_fee, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([头程关税成本]) / sum([订单总金额(不含税)]))  as tariffs, iif(sum([订单总金额(不含税)]) = 0,0,sum([退货费]) / sum([订单总金额(不含税)])) as refund, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([推广费] + [测评费]) / sum([订单总金额(不含税)])) as advertise, iif(sum([订单总金额(不含税)]) = 0,0,sum([海外仓费用]) / sum([订单总金额(不含税)])) as oversea, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([国内运营]) / sum([订单总金额(不含税)])) as inside_country, iif(sum([订单总金额(不含税)]) = 0,0,sum([采购成本]) / sum([订单总金额(不含税)])) as purchase, "
+    Sql = Sql & " iif(sum([订单总金额(不含税)]) = 0,0,sum([毛利]) / sum([订单总金额(不含税)])) as profit_rate "
+    Sql = Sql & " from [周报数据$] x left join (select * from [汇率$]) y on x.[站点] = y.[站点] "
+    Sql = Sql & " group by x.[站点],[产品代码] ) a"
+    Sql = Sql & " right join (select * from [成本核算数据$]) b on a.station = b.[站点] and a.sku = b.[CODE] "
+    Sql = Sql & ") where 1=1 "
+    Sql = Sql & " order by station,sku "
+    
+    Sheets("指标监控").Range("A3").CopyFromRecordset oRead_Excel_Conn.Execute(Sql)
+    Sheets("指标监控").Range("A:B").EntireColumn.AutoFit
+    Sheets("指标监控").Range("E:AI").NumberFormatLocal = "0.00%"
+    
+End Sub
