@@ -1,0 +1,149 @@
+Sub 数据处理()
+    '关闭屏幕刷新和警告窗口
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    max_column = Sheets("所有SKU").Range("A1").CurrentRegion.Columns.Count
+    max_row = Sheets("所有SKU").Range("A1").CurrentRegion.Rows.Count
+    '    Debug.Print max_column
+    '    Debug.Print max_row
+    
+    '设置SQL连接
+    Set oRead_Excel_Conn = CreateObject("adodb.connection")
+    Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
+        Case Is <= 11
+            oRead_Excel_Conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
+        Case Is >= 12
+            oRead_Excel_Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
+    End Select
+    ''''''''''''''''''''
+    '订单利润明细，每日销量统计
+    Sql = "transform sum([销售数量])+sum([修改数量]) as qty select [系统SKU] from [订单利润报表$] where [系统SKU] is not null group by [系统SKU] pivot format([付款时间],'yyyy/mm/dd')"
+    Set result = oRead_Excel_Conn.Execute(Sql)
+    totalcolumns = result.Fields.Count
+    '    Debug.Print totalcolumns
+    
+    
+    Sheets("过程").Range("A1").CurrentRegion.ClearContents
+    Sheets("结果").Range("A1").CurrentRegion.ClearContents
+    'SQL的表头粘贴，通过fields获取表头
+    For i = 0 To totalcolumns - 1
+        '        Sheets("过程").Cells(1, i + 1) = result.Fields(i).Name
+        Sheets("过程").Cells(1, i + 1) = "D" & i
+    Next i
+    
+    'SQL过程数据粘贴
+    Sheets("过程").Range("A2").CopyFromRecordset result
+    
+    Title = Array("系统SKU", "产品中文名", "产品状态", "产品一级类别", "产品二级类别", "产品三级类别", "采购价", "采购中数", _
+        "当前库存数", "可用库存数", "库存结余数", "未配货预出数", "采购天数", "一周销量", "两周销量", "当月销量", _
+        "三个月销量", "库龄", "产品侵权风险", "按周对比销量趋势", "供应商名称", "需补货数")
+    
+    '粘贴结果到结果表
+    sql2 = " select a1.*,d.qty,format(d.max_date,'yyyy/mm/dd') from ("
+    sql2 = sql2 & " select a.*,format(c.max_date,'yyyy/mm/dd'),c.qty from ("
+    sql2 = sql2 & " select a.[系统SKU] as sku,[产品中文名],[产品状态],[产品一级类别],[产品二级类别],[产品三级类别],[采购价],[采购中数],"
+    sql2 = sql2 & " [当前库存数],[可用库存数],[库存结余数],[未配货预出数],[采购天数],"
+    sql2 = sql2 & " [一周销量],[两周销量],[当月销量],"
+    sql2 = sql2 & " [三个月销量],[库龄],[产品侵权风险],[按周对比销量趋势],[供应商名称],[需补货数],b."
+    For i = totalcolumns - 1 To 1 Step -1
+        If i = 1 Then
+            sql2 = sql2 & "D" & i & " "
+        Else
+            sql2 = sql2 & "D" & i & ", "
+        End If
+    Next
+    sql2 = sql2 & " from [所有SKU$] a "
+    sql2 = sql2 & " left join (select "
+    For i = totalcolumns - 1 To 0 Step -1
+        If i = 0 Then
+            sql2 = sql2 & "D" & i & " "
+        Else
+            sql2 = sql2 & "D" & i & ", "
+        End If
+    Next
+    sql2 = sql2 & " from [过程$] ) b on CStr(a.[系统SKU]) = b.D0 "
+    sql2 = sql2 & " where [备注] = '其他' or [备注] = '×' ) a "
+    sql2 = sql2 & " left join ("
+    sql2 = sql2 & " select sku,max([下单时间]) as max_date,sum([数量])+sum([入库数量]) as qty "
+    sql2 = sql2 & " from [采购在途$] where [是否完结] = '否' group by sku ) c on a.sku = c.sku ) a1"
+    sql2 = sql2 & " left join ("
+    sql2 = sql2 & " select sku,max([下单时间]) as max_date,sum([数量])+sum([入库数量]) as qty "
+    sql2 = sql2 & " from [采购在途$] group by sku ) d on a1.sku = d.sku "
+    
+    
+    Set result2 = oRead_Excel_Conn.Execute(sql2)
+    '填写结果表表头
+    For row_num = 0 To UBound(Title)
+        Sheets("结果").Cells(1, row_num + 1) = Title(row_num)
+    Next row_num
+    '结果表日期列表头
+    For j = totalcolumns - 1 To 1 Step -1
+        row_num = row_num + 1
+        Sheets("结果").Cells(1, row_num) = result.Fields(j).Name
+    Next j
+    '结果表采购数据表头
+    title2 = Array("在途日期", "在途数量", "采购中", "最近采购日期")
+    For i = 0 To UBound(title2)
+        Sheets("结果").Cells(1, i + 37) = title2(i)
+    Next i
+    '粘贴结果数据
+    Sheets("结果").Range("A2").CopyFromRecordset result2
+    
+    
+    '粘贴结果到备货表
+    sql3 = " select a1.*,'',d.qty,'','',format(d.max_date,'yyyy/mm/dd') from ("
+    sql3 = sql3 & " select a.*,format(c.max_date,'yyyy/mm/dd'),c.qty from ("
+    sql3 = sql3 & " select a.[系统SKU] as sku,[产品中文名],[产品状态],'','',[产品一级类别],[产品二级类别],[产品三级类别],[采购价],[采购中数],"
+    sql3 = sql3 & " [当前库存数],[可用库存数],[库存结余数],[未配货预出数],[采购天数],"
+    sql3 = sql3 & "'','','','','','','','','','','','','','','','','','','','','',[一周销量],[两周销量],[当月销量],"
+    sql3 = sql3 & " [三个月销量],[库龄],[产品侵权风险],[按周对比销量趋势],[供应商名称],[需补货数],'',b."
+    For i = totalcolumns - 1 To 1 Step -1
+        If i = 1 Then
+            sql3 = sql3 & "D" & i & " "
+        Else
+            sql3 = sql3 & "D" & i & ", "
+        End If
+    Next
+    sql3 = sql3 & " from [所有SKU$] a "
+    sql3 = sql3 & " left join (select "
+    For i = totalcolumns - 1 To 0 Step -1
+        If i = 0 Then
+            sql3 = sql3 & "D" & i & " "
+        Else
+            sql3 = sql3 & "D" & i & ", "
+        End If
+    Next
+    sql3 = sql3 & " from [过程$] ) b on CStr(a.[系统SKU]) = b.D0 "
+    sql3 = sql3 & " where [备注] = '其他' or [备注] = '×' ) a "
+    sql3 = sql3 & " left join ("
+    sql3 = sql3 & " select sku,max([下单时间]) as max_date,sum([数量])+sum([入库数量]) as qty "
+    sql3 = sql3 & " from [采购在途$] where [是否完结] = '否' group by sku ) c on a.sku = c.sku ) a1"
+    sql3 = sql3 & " left join ("
+    sql3 = sql3 & " select sku,max([下单时间]) as max_date,sum([数量])+sum([入库数量]) as qty "
+    sql3 = sql3 & " from [采购在途$] group by sku ) d on a1.sku = d.sku "
+    
+    beihuo_row = Sheets("备货表").Range("A3").CurrentRegion.Rows.Count
+    beihuo_column = Sheets("备货表").Range("A3").CurrentRegion.Columns.Count
+    Debug.Print Sheets("备货表").Range("A1048576").End(xlUp).Row
+    If Sheets("备货表").Range("A1048576").End(xlUp).Row > 3 Then
+        Sheets("备货表").Range(Cells(4, 1), Cells(Sheets("备货表").Range("A1048576").End(xlUp).Row, beihuo_column)).ClearContents
+    End If
+    '粘贴结果数据
+    Sheets("备货表").Range("A4").CopyFromRecordset oRead_Excel_Conn.Execute(sql3)
+    date_count = 46
+    For j = totalcolumns - 1 To 1 Step -1
+        date_count = date_count + 1
+        Sheets("备货表").Cells(3, date_count) = result.Fields(j).Name
+    Next j
+    '关闭连接，释放内存
+    oRead_Excel_Conn.Close
+    Set oRead_Excel_Conn = Nothing
+    
+    '打开屏幕刷新和警告窗口
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+End Sub
+
+
