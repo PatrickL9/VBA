@@ -1,14 +1,14 @@
-Sub 精奥广告数据报表()
-    
+Sub 合并数据源()
+    a = Timer
     Debug.Print ("\n")
-'    temp_path = get_path()
-    temp_path = "E:\数据处理\2021年\11月\1111精奥广告部表处理\10.1-10.31视频广告数据源&结果表\10月 一部 二部 三部 四部视频广告数据源"
+    temp_path = get_path()
+'    temp_path = "E:\数据处理\2021年\11月\1111精奥广告部表处理\10.1-10.31视频广告数据源&结果表\10月 一部 二部 三部 四部视频广告数据源"
     Filename = Dir(temp_path & "\*.xlsx")
     Debug.Print (temp_path)
 '    Debug.Print (Filename)
     
     '清空整个sheet
-    Sheets("合并数据源").Range("1:1048576").Delete
+    Sheets("合并数据源").Range("1:1048576").Clear
     '关闭屏幕刷新和警告窗口
     Application.ScreenUpdating = False
     Application.DisplayAlerts = False
@@ -75,18 +75,250 @@ Sub 精奥广告数据报表()
     Sheets("合并数据源").Range("A:A").NumberFormatLocal = "yyyy-mm-dd"
     Sheets("合并数据源").Range("A:B").EntireColumn.AutoFit
     
-    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-    ''''''''''''''''''''''拆分数据''''''''''''''''''''''''''''''''''''''''''
-    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-    
+    Dim b
+    b = Timer - a
+    MsgBox " 合并完成！" & Chr(13) & "一共用时" & Round(b, 2) & "秒"
     
     '关闭连接，释放内存
     oRead_Excel_Conn.Close
     Set oRead_Excel_Conn = Nothing
     
-    '关闭屏幕刷新和警告窗口
+    '打开屏幕刷新和警告窗口
     Application.ScreenUpdating = True
     Application.DisplayAlerts = True
+End Sub
+Sub 拆分数据()
+    a = Timer
+    '获取当前文件工作路径，后面保存数据备用
+    Dim ActivePath As String
+    ActivePath = ActiveWorkbook.Path
+    
+    '关闭屏幕刷新和警告窗口
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''生成过程表''''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+     Title = Array("dept_name", "country", "account_country", "event_name", "order_num1", "order_num2", "order_num3", "Impressions", "Clicks", "spend", "14days_orders", _
+        "14days_gmv", "ACoS", "CTR", "CPC", "RoAS", "first_quartile_watches", "middle_watches", "third_quartile_watches", _
+        "full_watches", "mute_times", "5s_times")
+        
+    '设置SQL连接
+    Set oRead_Excel_Conn = CreateObject("adodb.connection")
+    Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
+        Case Is <= 11
+            oRead_Excel_Conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
+        Case Is >= 12
+            oRead_Excel_Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
+    End Select
+    
+    '由于要实现数据透视表，类似汇总行的功能
+    '因此用到union，把汇总行拼接，通过排序方式把汇总行插入到结果表中间
+    '每一次的union，代表每一层级的汇总行
+    Sql = "select [部门] as dept_name, [国家] as country, [账号国家] as account_country,[广告活动名称] as event_name, 0 as num,0 as num1, 0 as num2, "
+    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, "
+    Sql = Sql & " sum([14天总订单数(#)]) as 14days_orders,sum([14天总销售额]) as 14days_gmv, "
+    Sql = Sql & " iif(sum([14天总销售额]) = 0, 0, sum([花费])/sum([14天总销售额])) as acos, "
+    Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
+    Sql = Sql & " iif(sum([点击量]) = 0, 0, sum([14天总订单数(#)])/sum([点击量])) as CPC, "
+    Sql = Sql & " iif(sum([花费]) = 0, 0, sum([14天总销售额])/sum([花费])) as roas,"
+    Sql = Sql & " sum([第一四分位视频观看次数]) as first_quartile_watches, sum([中点视频观看次数]) as middle_watches, "
+    Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
+    Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
+    Sql = Sql & " from [合并数据源$] group by [部门],[国家],[账号国家],[广告活动名称] "
+    Sql = Sql & " union "
+    Sql = Sql & " select [部门] as dept_name, [国家] as country, [账号国家] as account_country, [账号国家] & ' 汇总' as event_name, 1 as num,0 as num1, 0 as num2, "
+    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, "
+    Sql = Sql & " sum([14天总订单数(#)]) as 14days_orders,sum([14天总销售额]) as 14days_gmv, "
+    Sql = Sql & " iif(sum([14天总销售额]) = 0, 0, sum([花费])/sum([14天总销售额])) as acos, "
+    Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
+    Sql = Sql & " iif(sum([点击量]) = 0, 0, sum([14天总订单数(#)])/sum([点击量])) as CPC, "
+    Sql = Sql & " iif(sum([花费]) = 0, 0, sum([14天总销售额])/sum([花费])) as roas,"
+    Sql = Sql & " sum([第一四分位视频观看次数]) as first_quartile_watches, sum([中点视频观看次数]) as middle_watches, "
+    Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
+    Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
+    Sql = Sql & " from [合并数据源$] group by [部门],[国家],[账号国家] "
+    Sql = Sql & " union "
+    Sql = Sql & " select [部门] as dept_name, [国家] as country,[国家] & ' 汇总' as account_country, [国家] & ' 汇总' as event_name, 2 as num,1 as num1, 0 as num2, "
+    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, "
+    Sql = Sql & " sum([14天总订单数(#)]) as 14days_orders,sum([14天总销售额]) as 14days_gmv, "
+    Sql = Sql & " iif(sum([14天总销售额]) = 0, 0, sum([花费])/sum([14天总销售额])) as acos, "
+    Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
+    Sql = Sql & " iif(sum([点击量]) = 0, 0, sum([14天总订单数(#)])/sum([点击量])) as CPC, "
+    Sql = Sql & " iif(sum([花费]) = 0, 0, sum([14天总销售额])/sum([花费])) as roas,"
+    Sql = Sql & " sum([第一四分位视频观看次数]) as first_quartile_watches, sum([中点视频观看次数]) as middle_watches, "
+    Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
+    Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
+    Sql = Sql & " from [合并数据源$] group by [部门],[国家] "
+    Sql = Sql & " union "
+    Sql = Sql & " select [部门] as dept_name, [部门] & ' 汇总' as country,[部门] & ' 汇总' as account_country, [部门] & ' 汇总' as event_name, 2 as num,1 as num1, 1 as num2, "
+    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, "
+    Sql = Sql & " sum([14天总订单数(#)]) as 14days_orders,sum([14天总销售额]) as 14days_gmv, "
+    Sql = Sql & " iif(sum([14天总销售额]) = 0, 0, sum([花费])/sum([14天总销售额])) as acos, "
+    Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
+    Sql = Sql & " iif(sum([点击量]) = 0, 0, sum([14天总订单数(#)])/sum([点击量])) as CPC, "
+    Sql = Sql & " iif(sum([花费]) = 0, 0, sum([14天总销售额])/sum([花费])) as roas,"
+    Sql = Sql & " sum([第一四分位视频观看次数]) as first_quartile_watches, sum([中点视频观看次数]) as middle_watches, "
+    Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
+    Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
+    Sql = Sql & " from [合并数据源$] group by [部门] "
+    Sql = Sql & " order by dept_name,num2,country,num1,account_country,num"
+
+    '清空整个sheet
+    Sheets("过程表").Range("1:1048576").Clear
+    '填写结果表表头
+    For row_num = 0 To UBound(Title)
+        Sheets("过程表").Cells(1, row_num + 1) = Title(row_num)
+    Next row_num
+    
+    '粘贴结果
+    Sheets("过程表").Range("A2").CopyFromRecordset oRead_Excel_Conn.Execute(Sql)
+    
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''拆分数据''''''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+                    
+    
+    '设置拆分表的表头
+    Title2 = Array("部门", "账号国家", "展示量", "点击量", "花费", "广告订单", _
+        "广告销售额", "ACoS", "CTR", "CPC", "RoAS", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
+        "完整视频观看次数", "视频取消静音", "5 秒观看次数")
+     Title3 = Array("部门", "账号国家", "广告活动名称", "展示量", "点击量", "花费", "广告订单", _
+        "广告销售额", "ACoS", "CTR", "CPC", "RoAS", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
+        "完整视频观看次数", "视频取消静音", "5 秒观看次数")
+    
+    '第一列部门列，是拆分列
+    Set dept_range = Cells(1, 1)
+    '获取第一列的列名,用作sql语句变量
+    dept_name = dept_range.Value
+    '获取第一列的列数，用于定位该列数据，给数组赋值
+    dept_column = dept_range.Column
+    
+    '第二列国家列，是拆分列
+    Set country_range = Cells(1, 2)
+    country_name = country_range.Value
+    country_column = country_range.Column
+    
+    '设置字典
+    Set d = CreateObject("Scripting.Dictionary")
+    max_row = Worksheets("过程表").UsedRange.Rows.Count
+    dept_array = Worksheets("过程表").Range(Cells(2, dept_column), Cells(max_row, dept_column))
+    Set d2 = CreateObject("Scripting.Dictionary")
+    country_array = Worksheets("过程表").Range(Cells(2, country_column), Cells(max_row, country_column))
+    
+    '除标题外的目标数据，每一格赋值到字典中
+    For i = 1 To UBound(dept_array)
+        d(dept_array(i, 1)) = ""
+    Next
+    '把字典d的key赋给k，k作为字典的keys有剔重作用，k(i)就是该数组的所有不重复值
+    k = d.keys
+    
+    '除标题外的目标数据，每一格赋值到字典中
+    For i = 1 To UBound(country_array)
+        d2(country_array(i, 1)) = ""
+    Next
+    '把字典d的key赋给k，k作为字典的keys有剔重作用，k(i)就是该数组的所有不重复值
+    k2 = d2.keys
+    
+    '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    '''这里有坑，access的字段命名不能以数字开头，有数字开头就用[]
+    '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    '先按部门拆分
+    For i = 0 To UBound(k)
+        '新建工作簿
+        Workbooks.Add
+        
+        '第一页是部门汇总页
+        sql2 = "select [dept_name], [account_country],"
+        sql2 = sql2 & " [Impressions], [Clicks], [spend], [14days_orders], [14days_gmv], [ACoS], [CTR],[CPC], [RoAS],"
+        sql2 = sql2 & " [first_quartile_watches], [middle_watches], [third_quartile_watches], [full_watches], [mute_times], [5s_times]"
+        sql2 = sql2 & " from [过程表$]"
+        sql2 = sql2 & " where " & dept_name & " = '" & k(i) & "' "
+        sql2 = sql2 & " and ((event_name like '%汇总%' and account_country not like '%汇总%') "
+        sql2 = sql2 & " or " & country_name & " like '%汇总%')"
+        
+        '执行sql
+        Set result2 = oRead_Excel_Conn.Execute(sql2)
+        '结果赋值
+        If result2.bof And result2.EOF Then
+            Call macro
+        Else
+            '每次迭代增加一个sheet
+            Worksheets.Add after:=Sheets(Sheets.Count)
+            With ActiveSheet
+                '部门名称作为sheet名字
+                .Name = k(i)
+                '填写结果表表头
+                For row_num = 0 To UBound(Title2)
+                    .Cells(1, row_num + 1) = Title2(row_num)
+                Next row_num
+                '从第二行开始粘贴sql查询结果
+                .Range("A2").CopyFromRecordset result2
+                
+                '优化格式
+                .Range("H:J").NumberFormatLocal = "0.00%"
+                .Range("K:K").NumberFormatLocal = "0.00"
+                .Range("A:B").EntireColumn.AutoFit
+            End With
+        End If
+                       
+        '第二页开始按国家拆分
+        For j = 0 To UBound(k2)
+            Sql = "select [dept_name], [account_country], [event_name],"
+            Sql = Sql & " [Impressions], [Clicks], [spend], [14days_orders], [14days_gmv], [ACoS], [CTR],[CPC], [RoAS],"
+            Sql = Sql & " [first_quartile_watches], [middle_watches], [third_quartile_watches], [full_watches], [mute_times], [5s_times]"
+            Sql = Sql & " from [过程表$]"
+            Sql = Sql & " where " & dept_name & " = '" & k(i) & "' "
+            Sql = Sql & " and " & country_name & " = '" & k2(j) & "' "
+            Sql = Sql & " and " & country_name & " not like '%汇总%' "
+            
+            '执行sql
+            Set result = oRead_Excel_Conn.Execute(Sql)
+            '结果赋值
+            If result.bof And result.EOF Then
+                Call macro
+            Else
+                '每次迭代增加一个sheet
+                Worksheets.Add after:=Sheets(Sheets.Count)
+                With ActiveSheet
+                    '国家名称作为sheet名字
+                    .Name = k2(j)
+                    '填写结果表表头
+                    For row_num = 0 To UBound(Title3)
+                        .Cells(1, row_num + 1) = Title3(row_num)
+                    Next row_num
+                    '从第二行开始粘贴sql查询结果
+                    .Range("A2").CopyFromRecordset result
+                    
+                    '优化格式
+                    .Range("I:K").NumberFormatLocal = "0.00%"
+                    .Range("L:L").NumberFormatLocal = "0.00"
+                    .Range("A:C").EntireColumn.AutoFit
+                End With
+            End If
+        Next j
+        
+        '保存工作簿到当前文件路径
+        Sheets("sheet1").Delete
+        ActiveWorkbook.SaveAs Filename:=ActivePath & "\" & k(i) & ".xlsx", _
+            FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+        ActiveWindow.Close
+        
+    Next i
+    
+    '关闭连接，释放内存
+    oRead_Excel_Conn.Close
+    Set oRead_Excel_Conn = Nothing
+    
+    '打开屏幕刷新和警告窗口
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    
+    Dim b
+    b = Timer - a
+    MsgBox " 拆分完成!" & Chr(13) & "一共用时" & Round(b, 2) & "秒"
+    
 End Sub
 
 Public Function get_path() As String
@@ -100,4 +332,6 @@ Public Function get_path() As String
        End If
     End With
 End Function
+Sub macro()
 
+End Sub
