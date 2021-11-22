@@ -2,7 +2,6 @@ Sub 合并数据源()
     a = Timer
     Debug.Print ("\n")
     temp_path = get_path()
-'    temp_path = "E:\数据处理\2021年\11月\1111精奥广告部表处理\10.1-10.31视频广告数据源&结果表\10月 一部 二部 三部 四部视频广告数据源"
     Filename = Dir(temp_path & "\*.xlsx")
     Debug.Print (temp_path)
 '    Debug.Print (Filename)
