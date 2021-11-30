@@ -2,6 +2,7 @@ Sub 合并数据源()
     a = Timer
     Debug.Print ("\n")
     temp_path = get_path()
+'    temp_path = "E:\数据处理\2021年\11月\1111精奥广告部表处理\10.1-10.31视频广告数据源&结果表\10月 一部 二部 三部 四部视频广告数据源"
     Filename = Dir(temp_path & "\*.xlsx")
     Debug.Print (temp_path)
 '    Debug.Print (Filename)
@@ -103,6 +104,10 @@ Sub 拆分数据()
         "14days_gmv", "ACoS", "CTR", "CPC", "RoAS", "first_quartile_watches", "middle_watches", "third_quartile_watches", _
         "full_watches", "mute_times", "5s_times")
         
+    Title_CN = Array("部门", "国家", "账号国家", "campaign名", "order_num1", "order_num2", "order_num3", "Impressions", "Clicks", "spend", "14days_orders", _
+        "14days_gmv", "ACoS", "CTR", "转化率", "RoAS", "first_quartile_watches", "middle_watches", "third_quartile_watches", _
+        "full_watches", "mute_times", "5s_times")
+        
     '设置SQL连接
     Set oRead_Excel_Conn = CreateObject("adodb.connection")
     Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
@@ -181,10 +186,10 @@ Sub 拆分数据()
     
     '设置拆分表的表头
     Title2 = Array("部门", "账号国家", "展示量", "点击量", "花费", "广告订单", _
-        "广告销售额", "ACoS", "CTR", "CPC", "RoAS", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
+        "广告销售额", "ACoS", "CTR", "转化率", "RoAS", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
         "完整视频观看次数", "视频取消静音", "5 秒观看次数")
      Title3 = Array("部门", "账号国家", "广告活动名称", "展示量", "点击量", "花费", "广告订单", _
-        "广告销售额", "ACoS", "CTR", "CPC", "RoAS", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
+        "广告销售额", "ACoS", "CTR", "转化率", "RoAS", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
         "完整视频观看次数", "视频取消静音", "5 秒观看次数")
     
     '第一列部门列，是拆分列
@@ -309,6 +314,25 @@ Sub 拆分数据()
     '关闭连接，释放内存
     oRead_Excel_Conn.Close
     Set oRead_Excel_Conn = Nothing
+    
+    
+    '填写结果表中文表头
+    For row_num = 0 To UBound(Title_CN)
+        Sheets("过程表").Cells(1, row_num + 1) = Title_CN(row_num)
+    Next row_num
+    
+    '优化格式
+    Sheets("过程表").Rows(1).EntireRow.Font.Bold = True
+    Sheets("过程表").Range("M:O").NumberFormatLocal = "0.00%"
+    Sheets("过程表").Range("P:P").NumberFormatLocal = "0.00"
+    Sheets("过程表").Range("A:D").EntireColumn.AutoFit
+    Sheets("过程表").Columns("E:G").Delete
+    
+    For i = 2 To Sheets("过程表").Range("A1048576").End(xlUp).Row
+        If InStr(Sheets("过程表").Cells(i, 4).Value, "汇总") Then
+            Sheets("过程表").Rows(i).EntireRow.Font.Bold = True
+        End If
+    Next i
     
     '打开屏幕刷新和警告窗口
     Application.ScreenUpdating = True
