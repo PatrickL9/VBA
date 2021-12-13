@@ -1,3 +1,1 @@
-*.js linguist-language=Visual Basic .NET;
-*.css linguist-language=Visual Basic .NET;
-*.html linguist-language=Visual Basic .NET
+*. linguist-language=VBA;
