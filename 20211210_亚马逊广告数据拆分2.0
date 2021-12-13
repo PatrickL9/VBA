@@ -1,4 +1,3 @@
-```VBA
 Sub 合并数据源()
     a = Timer
     Debug.Print ("\n")
@@ -382,4 +381,3 @@ End Function
 Sub macro()
 
 End Sub
-```
