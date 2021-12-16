@@ -1,0 +1,91 @@
+Sub merge_file()
+    a = Timer
+    temp_path = get_path()
+    Filename = Dir(temp_path & "\*.csv")
+    Debug.Print (temp_path)
+    
+    '清空整个sheet
+    Sheets("合并数据源").Range("1:1048576").Clear
+    '关闭屏幕刷新和警告窗口
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''批量合并报表''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    num = 0
+    Do While Filename <> ""
+        Debug.Print Filename
+        account = Split(Filename, ".")
+        Set Workbook = Workbooks.Open(temp_path & "\" & Filename)
+        num = num + 1
+        With ThisWorkbook.ActiveSheet
+            Set copyRange = Workbook.Sheets(1).UsedRange
+            If num = 1 And copyRange.Rows.Count > 1 Then
+                copyRange.Offset(0, 0).Resize(copyRange.Rows.Count, copyRange.Columns.Count).Copy .Cells(1, 1)
+                .Cells(1, 28) = "账号"
+                For i = 2 To copyRange.Rows.Count
+                    .Cells(i, 28) = account
+                Next i
+            ElseIf copyRange.Rows.Count > 1 Then
+                For i = .Range("A1048576").End(xlUp).Row + 1 To .Range("A1048576").End(xlUp).Row + copyRange.Rows.Count - 1
+                    .Cells(i, 28) = account
+                Next i
+                copyRange.Offset(1, 0).Resize(copyRange.Rows.Count, copyRange.Columns.Count).Copy .Cells(.Range("A1048576").End(xlUp).Row + 1, 1)
+            End If
+        End With
+        Workbook.Close SaveChanges:=False
+        Filename = Dir
+    Loop
+    
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''批量合并报表''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    
+    '设置SQL连接
+    Set oRead_Excel_Conn = CreateObject("adodb.connection")
+    Select Case Application.Version * 1 '设置连接字符串,根据版本创建连接
+        Case Is <= 11
+            oRead_Excel_Conn.Open "Provider=Microsoft.Jet.Oledb.4.0;Extended Properties=excel 8.0;Data source=" & ThisWorkbook.FullName
+        Case Is >= 12
+            oRead_Excel_Conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & ThisWorkbook.FullName & ";Extended Properties=""Excel 12.0;HDR=YES"";"""
+    End Select
+    
+    'SQL查询匹配code数据列
+    Sql = "select a.*, b.code from [合并数据源$] a"
+    Sql = Sql & " left join (select fnsku,code from [fnsku-code对应关系$] group by fnsku,code) b"
+    Sql = Sql & " on a.fnsku = b.fnsku "
+    
+    '粘贴sql结果
+    Set result = oRead_Excel_Conn.Execute(Sql)
+    Sheets("合并数据源").Range("A2").CopyFromRecordset result
+    Sheets("合并数据源").Cells(1, 29) = "code"
+    Dim b
+    b = Timer - a
+    MsgBox " 处理成功！" & Chr(13) & "一共用时" & Round(b, 2) & "秒"
+    
+    '关闭连接，释放内存
+    oRead_Excel_Conn.Close
+    Set oRead_Excel_Conn = Nothing
+    
+    '开启屏幕刷新和警告窗口
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    
+    
+End Sub
+
+Public Function get_path() As String
+    '选择需要合并文件的文件夹
+    '差异：msoFileDialogFolderPicker
+    With Application.FileDialog(msoFileDialogFolderPicker)
+       .Title = "选择需要合并文件的文件夹"
+       .InitialFileName = "c:"
+       If .Show Then
+           get_path = .SelectedItems(1)
+       End If
+    End With
+End Function
+Sub macro()
+
+End Sub
