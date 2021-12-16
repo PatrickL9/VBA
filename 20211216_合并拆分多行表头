@@ -1,0 +1,90 @@
+Sub file_process()
+    a = Timer
+    Debug.Print ("\n")
+    temp_path = get_path()
+    Filename = Dir(temp_path & "\*.*")
+    Debug.Print (temp_path)
+    
+    '关闭屏幕刷新和警告窗口
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    '清空整个sheet
+    Sheets("合并数据源").Range("1:1048576").Clear
+    
+    '获取本文件workbook对象
+    Set workbook_origin = ThisWorkbook
+    '程序初始化，删除其他sheet
+    For i = Sheets.Count To 1 Step -1
+        If Sheets(i).Name <> "合并数据源" Then
+            Sheets(i).Delete
+        End If
+    Next i
+     
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''批量合并报表''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    num = 0
+    headerCount = 8
+    Do While Filename <> ""
+        account_country = Split(Filename, ".")(0)
+        Debug.Print account_country
+        country = Split(account_country, "-")(UBound(Split(account_country, "-")))
+        Debug.Print country
+        
+        sheet_check = 0
+        '判断是否有该国家的sheet，如果没有则新增
+        For Each sh In Worksheets
+            If sh.Name = country Then
+                sheet_check = 1
+                Exit For
+            End If
+        Next sh
+        
+        If sheet_check = 0 Then
+            Worksheets.Add after:=Sheets(Sheets.Count)
+            ActiveSheet.Name = country
+        End If
+        
+        Set Workbook = Workbooks.Open(temp_path & "\" & Filename)
+        Set copyRange = Workbook.Sheets(1).UsedRange
+        
+        If workbook_origin.Sheets(country).UsedRange.Rows.Count = 1 And copyRange.Rows.Count > headerCount Then
+            copyRange.Offset(headerCount - 1, 0).Resize(copyRange.Rows.Count - headerCount + 1, copyRange.Columns.Count).Copy workbook_origin.Sheets(country).Cells(1, 1)
+            workbook_origin.Sheets(country).Cells(1, copyRange.Columns.Count + 1) = "账号"
+            For i = 2 To copyRange.Rows.Count - headerCount + 1
+                workbook_origin.Sheets(country).Cells(i, copyRange.Columns.Count + 1) = account_country
+            Next i
+        ElseIf copyRange.Rows.Count > 8 Then
+            For i = workbook_origin.Sheets(country).Range("A1048576").End(xlUp).Row + 1 To workbook_origin.Sheets(country).Range("A1048576").End(xlUp).Row + copyRange.Rows.Count - headerCount
+                workbook_origin.Sheets(country).Cells(i, copyRange.Columns.Count + 1) = account_country
+            Next i
+            copyRange.Offset(headerCount, 0).Resize(copyRange.Rows.Count, copyRange.Columns.Count).Copy workbook_origin.Sheets(country).Cells(workbook_origin.Sheets(country).Range("A1048576").End(xlUp).Row + 1, 1)
+        End If
+        
+        Workbook.Close SaveChanges:=False
+        Filename = Dir
+    Loop
+    
+    Dim b
+    b = Timer - a
+    MsgBox " 处理成功!" & Chr(13) & "一共用时" & Round(b, 2) & "秒"
+    
+    '打开屏幕刷新和警告窗口
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+End Sub
+Public Function get_path() As String
+    '选择需要合并文件的文件夹
+    '差异：msoFileDialogFolderPicker
+    With Application.FileDialog(msoFileDialogFolderPicker)
+       .Title = "选择需要合并文件的文件夹"
+       .InitialFileName = "c:"
+       If .Show Then
+           get_path = .SelectedItems(1)
+       End If
+    End With
+End Function
+Sub macro()
+
+End Sub
