@@ -101,11 +101,11 @@ Sub 拆分数据()
     ''''''''''''''''''''''生成过程表''''''''''''''''''''''''''''''''''''''''
     ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
      Title = Array("dept_name", "country", "account_country", "event_name", "order_num1", "order_num2", "order_num3", "Impressions", "Clicks", "spend", "14days_orders", _
-        "14days_gmv", "ACoS", "CTR", "CPC", "RoAS", "first_quartile_watches", "middle_watches", "third_quartile_watches", _
+        "14days_gmv", "ACoS", "CTR", "CPC", "RoAS", "ROI", "CPA", "first_quartile_watches", "middle_watches", "third_quartile_watches", _
         "full_watches", "mute_times", "5s_times")
         
     Title_CN = Array("部门", "国家", "账号国家", "campaign名", "order_num1", "order_num2", "order_num3", "Impressions", "Clicks", "spend", "14days_orders", _
-        "14days_gmv", "ACoS", "CTR", "转化率", "RoAS", "first_quartile_watches", "middle_watches", "third_quartile_watches", _
+        "14days_gmv", "ACoS", "CTR", "转化率", "RoAS", "ROI", "CPA", "first_quartile_watches", "middle_watches", "third_quartile_watches", _
         "full_watches", "mute_times", "5s_times")
         
     '设置SQL连接
@@ -127,6 +127,8 @@ Sub 拆分数据()
     Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
     Sql = Sql & " iif(sum([点击量]) = 0, 0, sum([14天总订单数(#)])/sum([点击量])) as CPC, "
     Sql = Sql & " iif(sum([花费]) = 0, 0, sum([14天总销售额])/sum([花费])) as roas,"
+    Sql = Sql & " iif(sum([花费]) = 0,0,(sum([14天总销售额])-sum([花费]))/sum([花费])) as roi,"
+    Sql = Sql & " iif(sum([14天总订单数(#)]) = 0,0, sum([花费])/sum([14天总订单数(#)])) as cpa,"
     Sql = Sql & " sum([第一四分位视频观看次数]) as first_quartile_watches, sum([中点视频观看次数]) as middle_watches, "
     Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
     Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
@@ -139,6 +141,8 @@ Sub 拆分数据()
     Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
     Sql = Sql & " iif(sum([点击量]) = 0, 0, sum([14天总订单数(#)])/sum([点击量])) as CPC, "
     Sql = Sql & " iif(sum([花费]) = 0, 0, sum([14天总销售额])/sum([花费])) as roas,"
+    Sql = Sql & " iif(sum([花费]) = 0,0,(sum([14天总销售额])-sum([花费]))/sum([花费])) as roi,"
+    Sql = Sql & " iif(sum([14天总订单数(#)]) = 0,0, sum([花费])/sum([14天总订单数(#)])) as cpa,"
     Sql = Sql & " sum([第一四分位视频观看次数]) as first_quartile_watches, sum([中点视频观看次数]) as middle_watches, "
     Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
     Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
@@ -151,6 +155,8 @@ Sub 拆分数据()
     Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
     Sql = Sql & " iif(sum([点击量]) = 0, 0, sum([14天总订单数(#)])/sum([点击量])) as CPC, "
     Sql = Sql & " iif(sum([花费]) = 0, 0, sum([14天总销售额])/sum([花费])) as roas,"
+    Sql = Sql & " iif(sum([花费]) = 0,0,(sum([14天总销售额])-sum([花费]))/sum([花费])) as roi,"
+    Sql = Sql & " iif(sum([14天总订单数(#)]) = 0,0, sum([花费])/sum([14天总订单数(#)])) as cpa,"
     Sql = Sql & " sum([第一四分位视频观看次数]) as first_quartile_watches, sum([中点视频观看次数]) as middle_watches, "
     Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
     Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
@@ -163,6 +169,8 @@ Sub 拆分数据()
     Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
     Sql = Sql & " iif(sum([点击量]) = 0, 0, sum([14天总订单数(#)])/sum([点击量])) as CPC, "
     Sql = Sql & " iif(sum([花费]) = 0, 0, sum([14天总销售额])/sum([花费])) as roas,"
+    Sql = Sql & " iif(sum([花费]) = 0,0,(sum([14天总销售额])-sum([花费]))/sum([花费])) as roi,"
+    Sql = Sql & " iif(sum([14天总订单数(#)]) = 0,0, sum([花费])/sum([14天总订单数(#)])) as cpa,"
     Sql = Sql & " sum([第一四分位视频观看次数]) as first_quartile_watches, sum([中点视频观看次数]) as middle_watches, "
     Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
     Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
@@ -325,6 +333,8 @@ Sub 拆分数据()
     Sheets("过程表").Rows(1).EntireRow.Font.Bold = True
     Sheets("过程表").Range("M:O").NumberFormatLocal = "0.00%"
     Sheets("过程表").Range("P:P").NumberFormatLocal = "0.00"
+    Sheets("过程表").Range("Q:Q").NumberFormatLocal = "0.00%"
+    Sheets("过程表").Range("R:R").NumberFormatLocal = "0.00"
     Sheets("过程表").Range("A:D").EntireColumn.AutoFit
     Sheets("过程表").Columns("E:G").Delete
     
