@@ -58,10 +58,12 @@ Sub 合并数据源()
     End Select
 
     'SQL查询关联部门信息
-    Sql = "select a.*,b.dept_name,'SB' as ad_type from [合并数据源$] a"
+    Sql = " select a1.*,b1.[广告管理费费率] from ("
+    Sql = Sql & "select a.*,b.dept_name,'SB' as ad_type from [合并数据源$] a"
     Sql = Sql & " left join (select [账号国家] as account_country,[部门] as dept_name from [品名匹配表$] group by [账号国家],[部门] ) b "
     Sql = Sql & " on a.[账号国家] = b.account_country "
-    Sql = Sql & " where a.[账号国家] is not null "
+    Sql = Sql & " where a.[账号国家] is not null ) a1"
+    Sql = Sql & " left join ( select * from [广告管理费费率$]) b1 on a1.[国家] = b1.[国家]"
 
     Set result = oRead_Excel_Conn.Execute(Sql)
 
@@ -70,6 +72,7 @@ Sub 合并数据源()
     Sheets("合并数据源").Range("A2").CopyFromRecordset result
     Sheets("合并数据源").Cells(1, 28) = "部门"
     Sheets("合并数据源").Cells(1, 29) = "广告类型"
+    Sheets("合并数据源").Cells(1, 30) = "广告管理费费率"
 
     '优化格式
     Sheets("合并数据源").Range("A:A").NumberFormatLocal = "yyyy-mm-dd"
@@ -100,13 +103,13 @@ Sub 拆分数据()
     ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
     ''''''''''''''''''''''生成过程表''''''''''''''''''''''''''''''''''''''''
     ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-     Title = Array("dept_name", "country", "account_country", "event_name", "order_num1", "order_num2", "order_num3", "Impressions", "Clicks", "spend", "14days_orders", _
+     Title = Array("dept_num", "dept_name", "country", "account_country", "event_name", "order_num1", "order_num2", "order_num3", "order_num4", "Impressions", "Clicks", "spend", "ad_fee", "14days_orders", _
         "14days_gmv", "ACoS", "CTR", "CPC", "RoAS", "ROI", "CPA", "first_quartile_watches", "middle_watches", "third_quartile_watches", _
         "full_watches", "mute_times", "5s_times")
         
-    Title_CN = Array("部门", "国家", "账号国家", "campaign名", "order_num1", "order_num2", "order_num3", "Impressions", "Clicks", "spend", "14days_orders", _
-        "14days_gmv", "ACoS", "CTR", "转化率", "RoAS", "ROI", "CPA", "first_quartile_watches", "middle_watches", "third_quartile_watches", _
-        "full_watches", "mute_times", "5s_times")
+    Title_CN = Array("排序", "部门", "国家", "账号国家", "campaign名", "order_num1", "order_num2", "order_num3", "order_num4", "Impressions", "Clicks", "spend", "广告管理费", "广告订单", _
+        "广告销售额", "ACoS", "CTR", "转化率", "RoAS", "ROI", "CPA", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
+        "完整视频观看次数", "视频取消静音", "5 秒观看次数")
         
     '设置SQL连接
     Set oRead_Excel_Conn = CreateObject("adodb.connection")
@@ -120,8 +123,9 @@ Sub 拆分数据()
     '由于要实现数据透视表，类似汇总行的功能
     '因此用到union，把汇总行拼接，通过排序方式把汇总行插入到结果表中间
     '每一次的union，代表每一层级的汇总行
-    Sql = "select [部门] as dept_name, [国家] as country, [账号国家] as account_country,[广告活动名称] as event_name, 0 as num,0 as num1, 0 as num2, "
-    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, "
+    Sql = "select iif([部门] = '一部', 1, iif([部门] = '二部', 2, iif([部门] = '三部', 3, iif([部门] = '四部', 4, 99)))) as dept_num,"
+    Sql = Sql & " [部门] as dept_name, [国家] as country, [账号国家] as account_country,[广告活动名称] as event_name, 0 as num,0 as num1, 0 as num2, 0 as num3, "
+    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend,sum([花费]*[广告管理费费率]) as ad_fee, "
     Sql = Sql & " sum([14天总订单数(#)]) as 14days_orders,sum([14天总销售额]) as 14days_gmv, "
     Sql = Sql & " iif(sum([14天总销售额]) = 0, 0, sum([花费])/sum([14天总销售额])) as acos, "
     Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
@@ -134,8 +138,9 @@ Sub 拆分数据()
     Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
     Sql = Sql & " from [合并数据源$] group by [部门],[国家],[账号国家],[广告活动名称] "
     Sql = Sql & " union "
-    Sql = Sql & " select [部门] as dept_name, [国家] as country, [账号国家] as account_country, [账号国家] & ' 汇总' as event_name, 1 as num,0 as num1, 0 as num2, "
-    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, "
+    Sql = Sql & " select iif([部门] = '一部', 1, iif([部门] = '二部', 2, iif([部门] = '三部', 3, iif([部门] = '四部', 4, 99)))) as dept_num,"
+    Sql = Sql & " [部门] as dept_name, [国家] as country, [账号国家] as account_country, [账号国家] & ' 汇总' as event_name, 1 as num,0 as num1, 0 as num2, 0 as num3, "
+    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend,sum([花费]*[广告管理费费率]) as ad_fee, "
     Sql = Sql & " sum([14天总订单数(#)]) as 14days_orders,sum([14天总销售额]) as 14days_gmv, "
     Sql = Sql & " iif(sum([14天总销售额]) = 0, 0, sum([花费])/sum([14天总销售额])) as acos, "
     Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
@@ -148,8 +153,9 @@ Sub 拆分数据()
     Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
     Sql = Sql & " from [合并数据源$] group by [部门],[国家],[账号国家] "
     Sql = Sql & " union "
-    Sql = Sql & " select [部门] as dept_name, [国家] as country,[国家] & ' 汇总' as account_country, [国家] & ' 汇总' as event_name, 2 as num,1 as num1, 0 as num2, "
-    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, "
+    Sql = Sql & " select iif([部门] = '一部', 1, iif([部门] = '二部', 2, iif([部门] = '三部', 3, iif([部门] = '四部', 4, 99)))) as dept_num,"
+    Sql = Sql & " [部门] as dept_name, [国家] as country,[国家] & ' 汇总' as account_country, [国家] & ' 汇总' as event_name, 2 as num,1 as num1, 0 as num2, 0 as num3, "
+    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend,sum([花费]*[广告管理费费率]) as ad_fee, "
     Sql = Sql & " sum([14天总订单数(#)]) as 14days_orders,sum([14天总销售额]) as 14days_gmv, "
     Sql = Sql & " iif(sum([14天总销售额]) = 0, 0, sum([花费])/sum([14天总销售额])) as acos, "
     Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
@@ -162,8 +168,9 @@ Sub 拆分数据()
     Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
     Sql = Sql & " from [合并数据源$] group by [部门],[国家] "
     Sql = Sql & " union "
-    Sql = Sql & " select [部门] as dept_name, [部门] & ' 汇总' as country,[部门] & ' 汇总' as account_country, [部门] & ' 汇总' as event_name, 2 as num,1 as num1, 1 as num2, "
-    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, "
+    Sql = Sql & " select iif([部门] = '一部', 1, iif([部门] = '二部', 2, iif([部门] = '三部', 3, iif([部门] = '四部', 4, 99)))) as dept_num,"
+    Sql = Sql & " [部门] as dept_name, [部门] & ' 汇总' as country,[部门] & ' 汇总' as account_country, [部门] & ' 汇总' as event_name, 3 as num,2 as num1, 1 as num2, 0 as num3,"
+    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, sum([花费]*[广告管理费费率]) as ad_fee,"
     Sql = Sql & " sum([14天总订单数(#)]) as 14days_orders,sum([14天总销售额]) as 14days_gmv, "
     Sql = Sql & " iif(sum([14天总销售额]) = 0, 0, sum([花费])/sum([14天总销售额])) as acos, "
     Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
@@ -175,7 +182,21 @@ Sub 拆分数据()
     Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
     Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
     Sql = Sql & " from [合并数据源$] group by [部门] "
-    Sql = Sql & " order by dept_name,num2,country,num1,account_country,num"
+    Sql = Sql & " union "
+    Sql = Sql & " select 99 as dept_num, '总计' as dept_name, '总计' as country, '总计' as account_country, '汇总' as event_name, 4 as num,3 as num1, 2 as num2, 1 as num3, "
+    Sql = Sql & " sum([展示量]) as Impressions, sum([点击量]) as Clicks, sum([花费]) as spend, sum([花费]*[广告管理费费率]) as ad_fee,"
+    Sql = Sql & " sum([14天总订单数(#)]) as 14days_orders,sum([14天总销售额]) as 14days_gmv, "
+    Sql = Sql & " iif(sum([14天总销售额]) = 0, 0, sum([花费])/sum([14天总销售额])) as acos, "
+    Sql = Sql & " iif(sum([展示量]) = 0, 0, sum([点击量])/sum([展示量])) as CTR, "
+    Sql = Sql & " iif(sum([点击量]) = 0, 0, sum([14天总订单数(#)])/sum([点击量])) as CPC, "
+    Sql = Sql & " iif(sum([花费]) = 0, 0, sum([14天总销售额])/sum([花费])) as roas,"
+    Sql = Sql & " iif(sum([花费]) = 0,0,(sum([14天总销售额])-sum([花费]))/sum([花费])) as roi,"
+    Sql = Sql & " iif(sum([14天总订单数(#)]) = 0,0, sum([花费])/sum([14天总订单数(#)])) as cpa,"
+    Sql = Sql & " sum([第一四分位视频观看次数]) as first_quartile_watches, sum([中点视频观看次数]) as middle_watches, "
+    Sql = Sql & " sum([第三四分位视频观看次数]) as third_quartile_watches, sum([完整视频观看次数]) as full_watches, "
+    Sql = Sql & " sum([视频取消静音]) as mute_times, sum([5 秒观看次数]) as 5s_times "
+    Sql = Sql & " from [合并数据源$] "
+    Sql = Sql & " order by num3,dept_num,num2,country,num1,account_country,num"
 
     '清空整个sheet
     Sheets("过程表").Range("1:1048576").Clear
@@ -193,22 +214,30 @@ Sub 拆分数据()
                     
     
     '设置拆分表的表头
-    Title2 = Array("部门", "账号国家", "展示量", "点击量", "花费", "广告订单", _
-        "广告销售额", "ACoS", "CTR", "转化率", "RoAS", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
+    Title_total = Array("月份", "日期", "广告类型", "部门", "展示量", "点击量", "花费", "广告管理费", "广告订单", _
+        "广告销售额", "ACoS", "CTR", "转化率", "RoAS", "ROI", "CPA")
+    Title2 = Array("部门", "账号国家", "展示量", "点击量", "花费", "广告管理费", "广告订单", _
+        "广告销售额", "ACoS", "CTR", "转化率", "RoAS", "ROI", "CPA", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
         "完整视频观看次数", "视频取消静音", "5 秒观看次数")
-     Title3 = Array("部门", "账号国家", "广告活动名称", "展示量", "点击量", "花费", "广告订单", _
-        "广告销售额", "ACoS", "CTR", "转化率", "RoAS", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
+    Title3 = Array("部门", "账号国家", "广告活动名称", "展示量", "点击量", "花费", "广告管理费", "广告订单", _
+        "广告销售额", "ACoS", "CTR", "转化率", "RoAS", "ROI", "CPA", "第一四分位视频观看次数", "中点视频观看次数", "第三四分位视频观看次数", _
         "完整视频观看次数", "视频取消静音", "5 秒观看次数")
+        
+    '获取指标预警值
+    acos_min = Sheets("指标预警").Cells(2, 2).Value
+    acos_max = Sheets("指标预警").Cells(2, 3).Value
+    ctr_max = Sheets("指标预警").Cells(3, 3).Value
+    cr_max = Sheets("指标预警").Cells(4, 3).Value
     
     '第一列部门列，是拆分列
-    Set dept_range = Cells(1, 1)
+    Set dept_range = Cells(1, 2)
     '获取第一列的列名,用作sql语句变量
     dept_name = dept_range.Value
     '获取第一列的列数，用于定位该列数据，给数组赋值
     dept_column = dept_range.Column
     
     '第二列国家列，是拆分列
-    Set country_range = Cells(1, 2)
+    Set country_range = Cells(1, 3)
     country_name = country_range.Value
     country_column = country_range.Column
     
@@ -221,21 +250,82 @@ Sub 拆分数据()
     
     '除标题外的目标数据，每一格赋值到字典中
     For i = 1 To UBound(dept_array)
-        d(dept_array(i, 1)) = ""
+        If dept_array(i, 1) <> "总计" Then
+            d(dept_array(i, 1)) = ""
+        End If
     Next
     '把字典d的key赋给k，k作为字典的keys有剔重作用，k(i)就是该数组的所有不重复值
     k = d.keys
     
     '除标题外的目标数据，每一格赋值到字典中
     For i = 1 To UBound(country_array)
-        d2(country_array(i, 1)) = ""
+        If country_array(i, 1) <> "总计" Then
+            d2(country_array(i, 1)) = ""
+        End If
     Next
     '把字典d的key赋给k，k作为字典的keys有剔重作用，k(i)就是该数组的所有不重复值
     k2 = d2.keys
     
-    '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-    '''这里有坑，access的字段命名不能以数字开头，有数字开头就用[]
-    '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    ''''''''''''''''生成部门汇总文件''''''''''''''''''''''
+    Workbooks.Add
+    Sql = " select ' ' as this_month, '' as this_date, 'SBV' as ad_type,"
+    Sql = Sql & " [dept_name], [Impressions], [Clicks], [spend],[ad_fee], [14days_orders], [14days_gmv], [ACoS], [CTR],[CPC], [RoAS],[ROI],[CPA]"
+    Sql = Sql & " from [过程表$]"
+    Sql = Sql & " where country like '%汇总%'  or country like '%总计%'"
+    
+    Set result_total = oRead_Excel_Conn.Execute(Sql)
+    
+    Worksheets.Add after:=Sheets(Sheets.Count)
+    With ActiveSheet
+        '部门名称作为sheet名字
+        .Name = "汇总"
+        '填写结果表表头
+        For row_num = 0 To UBound(Title_total)
+            .Cells(1, row_num + 1) = Title_total(row_num)
+        Next row_num
+        '从第二行开始粘贴sql查询结果
+        .Range("A2").CopyFromRecordset result_total
+        
+        '优化格式
+        .Range("G:G").NumberFormatLocal = "0.00"
+        .Range("K:M").NumberFormatLocal = "0.00%"
+        .Range("N:N").NumberFormatLocal = "0.00"
+        .Range("O:O").NumberFormatLocal = "0.00%"
+        .Range("P:P").NumberFormatLocal = "0.00"
+        .Range("A:U").EntireColumn.AutoFit
+        .Cells.Font.Name = "微软雅黑"
+        .Cells.HorizontalAlignment = xlCenter
+        '首行末行加粗和颜色
+        .Range(.Cells(1, 1), .Cells(1, 16)).Interior.Color = RGB(221, 235, 247)
+        .Range(.Cells(1, 1), .Cells(1, 16)).Font.Bold = True
+        .Range(.Cells(.Range("A1048576").End(xlUp).Row, 1), .Cells(.Range("A1048576").End(xlUp).Row, 16)).Interior.Color = RGB(221, 235, 247)
+        .Range(.Cells(.Range("A1048576").End(xlUp).Row, 1), .Cells(.Range("A1048576").End(xlUp).Row, 16)).Font.Bold = True
+        
+        '颜色预警
+        For x = 2 To .Range("A1048576").End(xlUp).Row
+            If .Cells(x, 11).Value < acos_min Then
+                .Cells(x, 11).Interior.Color = RGB(146, 208, 80)
+            ElseIf .Cells(x, 11).Value > acos_max Then
+                .Cells(x, 11).Interior.Color = RGB(255, 255, 80)
+            End If
+            
+            If .Cells(x, 12).Value > ctr_max Then
+                .Cells(x, 12).Interior.Color = RGB(146, 208, 80)
+            End If
+            
+            If .Cells(x, 13).Value > cr_max Then
+                .Cells(x, 13).Interior.Color = RGB(146, 208, 80)
+            End If
+        Next x
+    End With
+    
+    '保存工作簿到当前文件路径
+    Sheets("Sheet1").Delete
+    ActiveWorkbook.SaveAs Filename:=ActivePath & "\视频广告数据反馈.xlsx", _
+        FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+    ActiveWindow.Close
+    
+    ''''''''''''''''''''''拆分数据''''''''''''''''''''''
     '先按部门拆分
     For i = 0 To UBound(k)
         '新建工作簿
@@ -243,7 +333,7 @@ Sub 拆分数据()
         
         '第一页是部门汇总页
         sql2 = "select [dept_name], [account_country],"
-        sql2 = sql2 & " [Impressions], [Clicks], [spend], [14days_orders], [14days_gmv], [ACoS], [CTR],[CPC], [RoAS],"
+        sql2 = sql2 & " [Impressions], [Clicks], [spend],[ad_fee], [14days_orders], [14days_gmv], [ACoS], [CTR],[CPC], [RoAS],[ROI],[CPA],"
         sql2 = sql2 & " [first_quartile_watches], [middle_watches], [third_quartile_watches], [full_watches], [mute_times], [5s_times]"
         sql2 = sql2 & " from [过程表$]"
         sql2 = sql2 & " where " & dept_name & " = '" & k(i) & "' "
@@ -269,16 +359,44 @@ Sub 拆分数据()
                 .Range("A2").CopyFromRecordset result2
                 
                 '优化格式
-                .Range("H:J").NumberFormatLocal = "0.00%"
-                .Range("K:K").NumberFormatLocal = "0.00"
-                .Range("A:B").EntireColumn.AutoFit
+                .Range("F:F").NumberFormatLocal = "0.00"
+                .Range("I:K").NumberFormatLocal = "0.00%"
+                .Range("L:L").NumberFormatLocal = "0.00"
+                .Range("M:M").NumberFormatLocal = "0.00%"
+                .Range("N:N").NumberFormatLocal = "0.00"
+                .Range("A:U").EntireColumn.AutoFit
+                .Cells.Font.Name = "微软雅黑"
+                .Cells.HorizontalAlignment = xlCenter
+                '首行末行加粗和颜色
+                .Range(.Cells(1, 1), .Cells(1, 20)).Interior.Color = RGB(221, 235, 247)
+                .Range(.Cells(1, 1), .Cells(1, 20)).Font.Bold = True
+'                .Range(.Cells(1, 1), .Cells(1, 20)).WrapText = True
+                .Range(.Cells(.Range("A1048576").End(xlUp).Row, 1), .Cells(.Range("A1048576").End(xlUp).Row, 20)).Interior.Color = RGB(221, 235, 247)
+                .Range(.Cells(.Range("A1048576").End(xlUp).Row, 1), .Cells(.Range("A1048576").End(xlUp).Row, 20)).Font.Bold = True
+                
+                '颜色预警
+                For x = 2 To .Range("A1048576").End(xlUp).Row
+                    If .Cells(x, 9).Value < acos_min Then
+                        .Cells(x, 9).Interior.Color = RGB(146, 208, 80)
+                    ElseIf .Cells(x, 9).Value > acos_max Then
+                        .Cells(x, 9).Interior.Color = RGB(255, 255, 80)
+                    End If
+                    
+                    If .Cells(x, 10).Value > ctr_max Then
+                        .Cells(x, 10).Interior.Color = RGB(146, 208, 80)
+                    End If
+                    
+                    If .Cells(x, 11).Value > cr_max Then
+                        .Cells(x, 11).Interior.Color = RGB(146, 208, 80)
+                    End If
+                Next x
             End With
         End If
                        
         '第二页开始按国家拆分
         For j = 0 To UBound(k2)
             Sql = "select [dept_name], [account_country], [event_name],"
-            Sql = Sql & " [Impressions], [Clicks], [spend], [14days_orders], [14days_gmv], [ACoS], [CTR],[CPC], [RoAS],"
+            Sql = Sql & " [Impressions], [Clicks], [spend],[ad_fee], [14days_orders], [14days_gmv], [ACoS], [CTR],[CPC], [RoAS],[ROI],[CPA],"
             Sql = Sql & " [first_quartile_watches], [middle_watches], [third_quartile_watches], [full_watches], [mute_times], [5s_times]"
             Sql = Sql & " from [过程表$]"
             Sql = Sql & " where " & dept_name & " = '" & k(i) & "' "
@@ -304,15 +422,50 @@ Sub 拆分数据()
                     .Range("A2").CopyFromRecordset result
                     
                     '优化格式
-                    .Range("I:K").NumberFormatLocal = "0.00%"
-                    .Range("L:L").NumberFormatLocal = "0.00"
-                    .Range("A:C").EntireColumn.AutoFit
+                    .Range("G:G").NumberFormatLocal = "0.00"
+                    .Range("J:L").NumberFormatLocal = "0.00%"
+                    .Range("M:M").NumberFormatLocal = "0.00"
+                    .Range("N:N").NumberFormatLocal = "0.00%"
+                    .Range("O:O").NumberFormatLocal = "0.00"
+                    .Range("A:U").EntireColumn.AutoFit
+                    .Cells.Font.Name = "微软雅黑"
+                    .Cells.HorizontalAlignment = xlCenter
+                    '首行末行加粗和颜色
+                    .Range(.Cells(1, 1), .Cells(1, 21)).Interior.Color = RGB(221, 235, 247)
+                    .Range(.Cells(1, 1), .Cells(1, 21)).Font.Bold = True
+'                    .Range(.Cells(1, 1), .Cells(1, 21)).WrapText = True
+                    .Range(.Cells(.Range("A1048576").End(xlUp).Row, 1), .Cells(.Range("A1048576").End(xlUp).Row, 21)).Interior.Color = RGB(221, 235, 247)
+                    .Range(.Cells(.Range("A1048576").End(xlUp).Row, 1), .Cells(.Range("A1048576").End(xlUp).Row, 21)).Font.Bold = True
+                    
+                    '颜色预警
+                    For x = 2 To .Range("A1048576").End(xlUp).Row
+                        If .Cells(x, 10).Value < acos_min Then
+                            .Cells(x, 10).Interior.Color = RGB(146, 208, 80)
+                        ElseIf .Cells(x, 10).Value > acos_max Then
+                            .Cells(x, 10).Interior.Color = RGB(255, 255, 80)
+                        End If
+                        
+                        If .Cells(x, 11).Value > ctr_max Then
+                            .Cells(x, 11).Interior.Color = RGB(146, 208, 80)
+                        End If
+                        
+                        If .Cells(x, 12).Value > cr_max Then
+                            .Cells(x, 12).Interior.Color = RGB(146, 208, 80)
+                        End If
+                    Next x
+                    
+                    '汇总行加粗
+                    For n = 2 To .Range("A1048576").End(xlUp).Row
+                        If InStr(.Cells(n, 3).Value, "汇总") Then
+                            .Rows(n).EntireRow.Font.Bold = True
+                        End If
+                    Next n
                 End With
             End If
         Next j
         
         '保存工作簿到当前文件路径
-        Sheets("sheet1").Delete
+        Sheets("Sheet1").Delete
         ActiveWorkbook.SaveAs Filename:=ActivePath & "\" & k(i) & ".xlsx", _
             FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
         ActiveWindow.Close
@@ -331,39 +484,37 @@ Sub 拆分数据()
     
     '优化格式
     Sheets("过程表").Rows(1).EntireRow.Font.Bold = True
-    Sheets("过程表").Range("M:O").NumberFormatLocal = "0.00%"
-    Sheets("过程表").Range("P:P").NumberFormatLocal = "0.00"
-    Sheets("过程表").Range("Q:Q").NumberFormatLocal = "0.00%"
-    Sheets("过程表").Range("R:R").NumberFormatLocal = "0.00"
+    Sheets("过程表").Range("P:R").NumberFormatLocal = "0.00%"
+    Sheets("过程表").Range("S:S").NumberFormatLocal = "0.00"
+    Sheets("过程表").Range("T:T").NumberFormatLocal = "0.00%"
+    Sheets("过程表").Range("U:U").NumberFormatLocal = "0.00"
     Sheets("过程表").Range("A:D").EntireColumn.AutoFit
-    Sheets("过程表").Columns("E:G").Delete
+    Sheets("过程表").Columns("F:I").Delete
+    Sheets("过程表").Cells.Font.Name = "微软雅黑"
+    Sheets("过程表").Cells.HorizontalAlignment = xlCenter
+    Sheets("过程表").Range("A:V").EntireColumn.AutoFit
     
     '汇总行加粗
     For i = 2 To Sheets("过程表").Range("A1048576").End(xlUp).Row
-        If InStr(Sheets("过程表").Cells(i, 4).Value, "汇总") Then
+        If InStr(Sheets("过程表").Cells(i, 5).Value, "汇总") Then
             Sheets("过程表").Rows(i).EntireRow.Font.Bold = True
         End If
     Next i
-    
-    acos_min = Sheets("指标预警").Cells(2, 2).Value
-    acos_max = Sheets("指标预警").Cells(2, 3).Value
-    ctr_max = Sheets("指标预警").Cells(3, 3).Value
-    cr_max = Sheets("指标预警").Cells(4, 3).Value
 
     ''''''''''''预警颜色'''''''''''''''''''
     For i = 2 To Sheets("过程表").Range("A1048576").End(xlUp).Row
-        If Sheets("过程表").Cells(i, 10).Value < acos_min Then
-            Sheets("过程表").Cells(i, 10).Interior.Color = RGB(255, 255, 0)
-        ElseIf Sheets("过程表").Cells(i, 10).Value > acos_max Then
-            Sheets("过程表").Cells(i, 10).Interior.Color = RGB(146, 208, 80)
-        End If
-        
-        If Sheets("过程表").Cells(i, 11).Value > ctr_max Then
-            Sheets("过程表").Cells(i, 11).Interior.Color = RGB(146, 208, 80)
-        End If
-        
-        If Sheets("过程表").Cells(i, 12).Value > cr_max Then
+        If Sheets("过程表").Cells(i, 12).Value < acos_min Then
             Sheets("过程表").Cells(i, 12).Interior.Color = RGB(146, 208, 80)
+        ElseIf Sheets("过程表").Cells(i, 12).Value > acos_max Then
+            Sheets("过程表").Cells(i, 12).Interior.Color = RGB(255, 255, 80)
+        End If
+        
+        If Sheets("过程表").Cells(i, 13).Value > ctr_max Then
+            Sheets("过程表").Cells(i, 13).Interior.Color = RGB(146, 208, 80)
+        End If
+        
+        If Sheets("过程表").Cells(i, 14).Value > cr_max Then
+            Sheets("过程表").Cells(i, 14).Interior.Color = RGB(146, 208, 80)
         End If
     Next i
 
